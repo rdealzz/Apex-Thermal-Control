@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Apex Thermal Control — Monitoramento térmico de radiador automotivo</title>
+<meta name="description" content="Plataforma de monitoramento, análise ε–NTU e previsão de temperatura do sistema de arrefecimento automotivo a partir de dados OBD-II.">
+<link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="assets/css/app.css">
+</head>
+<body>
+
+<!-- ===== marca reutilizavel ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="atcHeat" x1="0" y1="64" x2="0" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35c8e8"/><stop offset="0.5" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff5a36"/>
+    </linearGradient>
+    <linearGradient id="atcEdge" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35c8e8"/><stop offset="1" stop-color="#ff5a36"/>
+    </linearGradient>
+    <symbol id="atcLogo" viewBox="0 0 64 64">
+      <rect x="2" y="2" width="60" height="60" rx="15" fill="#0e151f" stroke="url(#atcEdge)" stroke-width="2.2"/>
+      <g stroke="#27384d" stroke-width="2.4" stroke-linecap="round">
+        <path d="M16 19V51"/><path d="M24 19V51"/><path d="M32 19V51"/><path d="M40 19V51"/><path d="M48 19V51"/>
+      </g>
+      <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="#0e151f" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="url(#atcHeat)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="#0e151f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="url(#atcHeat)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.62"/>
+    </symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <div class="top-row">
+      <div class="brand">
+        <svg aria-hidden="true"><use href="#atcLogo"/></svg>
+        <div>
+          <div class="bt1">APEX</div>
+          <div class="bt2">THERMAL CONTROL</div>
+        </div>
+      </div>
+      <div class="top-right">
+        <span class="badge info" id="dsBadge"><span class="dot"></span><span id="dsName">Nenhuma coleta carregada</span></span>
+        <span class="badge" id="modeBadge">Modo —</span>
+      </div>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button role="tab" data-tab="painel" aria-selected="true">Painel</button>
+      <button role="tab" data-tab="importar" aria-selected="false">Importar dados</button>
+      <button role="tab" data-tab="analise" aria-selected="false">Análise térmica</button>
+      <button role="tab" data-tab="ia" aria-selected="false">Previsão (IA)</button>
+      <button role="tab" data-tab="alertas" aria-selected="false">Alertas</button>
+      <button role="tab" data-tab="relatorio" aria-selected="false">Relatório</button>
+      <button role="tab" data-tab="projeto" aria-selected="false">Projeto</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= PAINEL ================= -->
+<section class="tab" id="tab-painel" role="tabpanel">
+  <div class="banner" id="demoBanner" hidden>
+    <span style="font-size:18px">⚠︎</span>
+    <div><strong>Modo demonstração — dados sintéticos.</strong>
+      <span id="demoBannerTxt">A série exibida foi gerada por simulação física, não é medição real do veículo. Serve para validar a plataforma antes da primeira campanha de coleta.</span></div>
+  </div>
+
+  <div class="banner" id="calibBanner" hidden style="border-color:#1b5f72;background:linear-gradient(180deg,rgba(53,200,232,.13),rgba(53,200,232,.05));color:#b9e9f7">
+    <span style="font-size:18px">◎</span>
+    <div><strong>Linha de base não definida.</strong> O índice de saúde compara o UA medido com o UA previsto pelas correlações, que carrega o viés da geometria estimada.
+      Rode <b>Calibrar pelos dados desta coleta</b> na aba <b>Análise térmica</b> usando uma coleta com o radiador em bom estado — só depois disso a queda do índice indica degradação real.</div>
+  </div>
+
+  <div id="painelEmpty" class="card">
+    <div class="empty">
+      <span class="big">📡</span>
+      <strong style="color:var(--txt);font-size:15px">Nenhuma coleta carregada</strong><br>
+      Importe um CSV do scanner OBD-II na aba <b>Importar dados</b>, ou carregue uma coleta de demonstração para ver a plataforma em operação.
+      <div class="btn-row" style="justify-content:center;margin-top:16px">
+        <button class="btn primary" data-goto="importar">Ir para Importar dados</button>
+        <button class="btn" id="btnQuickDemo">Carregar coleta de demonstração</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="painelBody" hidden>
+    <div class="kpis" id="kpiRow"></div>
+
+    <div class="grid g-2-1" style="margin-top:16px">
+      <div class="card">
+        <div class="chart-h">
+          <span class="ct">Temperaturas do circuito de arrefecimento</span>
+          <span class="cs">medido × previsto em <span id="hzLabel">+5 min</span></span>
+        </div>
+        <div class="chart-box"><canvas id="chartTemp"></canvas></div>
+        <div class="legend" id="legTemp"></div>
+        <div class="player">
+          <button class="btn sm" id="btnPlay">▶ Reproduzir coleta</button>
+          <input type="range" id="scrub" min="0" max="100" value="100" step="1" style="flex:1;min-width:180px" aria-label="Instante da coleta">
+          <span class="t" id="scrubT">--:-- / --:--</span>
+        </div>
+      </div>
+      <div class="card">
+        <div class="chart-box"><canvas id="gaugeEct"></canvas></div>
+        <div class="chart-box" style="margin-top:6px"><canvas id="gaugeEps"></canvas></div>
+        <div class="chart-box" style="margin-top:6px"><canvas id="gaugeHealth"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="chart-h"><span class="ct">Calor rejeitado e efetividade</span><span class="cs">balanço de energia no radiador</span></div>
+        <div class="chart-box"><canvas id="chartQ"></canvas></div>
+        <div class="legend" id="legQ"></div>
+      </div>
+      <div class="card">
+        <div class="chart-h"><span class="ct">Condição de operação</span><span class="cs">variáveis lidas do scanner</span></div>
+        <div class="chart-box"><canvas id="chartOp"></canvas></div>
+        <div class="legend" id="legOp"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="spread">
+        <div>
+          <h3>Situação do instante selecionado</h3>
+          <p class="hint">Arraste a linha do tempo acima ou passe o mouse nos gráficos para inspecionar qualquer instante da coleta.</p>
+        </div>
+        <span class="badge" id="instRegime">—</span>
+      </div>
+      <div class="tbl-scroll"><table class="compact" id="tblInstant"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= IMPORTAR ================= -->
+<section class="tab" id="tab-importar" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Importar dados de uma coleta</h2>
+    <p class="hint">Duas fontes por campanha: o CSV gravado pelo aplicativo no Android (scanner OBD-II) e o CSV do logger de temperatura (ESP32 + DS18B20). A plataforma detecta as colunas, converte unidades e sincroniza os dois arquivos pelo horário.</p>
+
+    <div class="grid g2">
+      <div>
+        <label class="dz" id="dzObd">
+          <input type="file" id="fileObd" accept=".csv,.txt,.tsv">
+          <div class="dz-ico">🚗</div>
+          <div class="dz-t">CSV do scanner OBD-II</div>
+          <div class="dz-s">Car Scanner ELM OBD2 · Torque Pro · qualquer CSV com timestamp<br>Arraste o arquivo aqui ou clique para escolher</div>
+          <div class="dz-s" id="dzObdInfo" style="color:var(--ok);margin-top:7px"></div>
+        </label>
+      </div>
+      <div>
+        <label class="dz" id="dzEsp">
+          <input type="file" id="fileEsp" accept=".csv,.txt,.tsv">
+          <div class="dz-ico">🌡️</div>
+          <div class="dz-t">CSV do logger de temperatura <span class="badge" style="font-size:10px">opcional</span></div>
+          <div class="dz-s">ESP32 / Arduino com DS18B20 nas mangueiras superior e inferior<br>Sem este arquivo, a análise roda em modo modelo</div>
+          <div class="dz-s" id="dzEspInfo" style="color:var(--ok);margin-top:7px"></div>
+        </label>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="spread">
+      <div>
+        <h3>Coleta de demonstração</h3>
+        <p class="hint" style="margin-bottom:0">Séries sintéticas geradas pelo modelo físico, com o mesmo ruído e resolução dos sensores previstos. Use para validar a plataforma antes da primeira coleta real.</p>
+      </div>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <select id="demoSelect" style="max-width:420px"></select>
+      <button class="btn primary" id="btnLoadDemo">Carregar</button>
+      <button class="btn" id="btnDownloadDemo">Baixar como CSV</button>
+    </div>
+    <p class="hint" style="margin-top:8px">O botão <b>Baixar como CSV</b> gera os dois arquivos no formato exato que os aplicativos produzem — serve para testar a rotina de importação de ponta a ponta.</p>
+    <div class="sep"></div>
+    <div class="btn-row">
+      <button class="btn ghost" id="btnClearData">Descartar a coleta carregada</button>
+      <span class="hint" style="margin:0" id="loadedInfo"></span>
+    </div>
+  </div>
+
+  <div class="card" id="mapCard" hidden>
+    <h2>Mapeamento de colunas</h2>
+    <p class="hint">A detecção automática já preencheu o que reconheceu. Corrija manualmente se alguma coluna do seu arquivo tiver nome diferente.</p>
+    <div class="grid g2">
+      <fieldset><legend>Arquivo OBD-II</legend><div id="mapObd" class="param-grid"></div></fieldset>
+      <fieldset><legend>Arquivo do logger</legend><div id="mapEsp" class="param-grid"></div></fieldset>
+    </div>
+    <fieldset>
+      <legend>Sincronização das duas fontes</legend>
+      <div class="param-grid">
+        <div class="field">
+          <label class="fld" for="syncOffset">Offset aplicado ao logger <span class="unit">s</span></label>
+          <input type="number" id="syncOffset" value="0" step="1">
+        </div>
+        <div class="field">
+          <label class="fld" for="syncTol">Tolerância de casamento <span class="unit">s</span></label>
+          <input type="number" id="syncTol" value="2" step="0.5" min="0.5">
+        </div>
+        <div class="field" style="display:flex;align-items:flex-end">
+          <button class="btn sm" id="btnAutoSync">Alinhar automaticamente</button>
+        </div>
+      </div>
+      <p class="hint" style="margin-bottom:0">O relógio do ESP32 costuma contar desde a energização (<code>millis()</code>), não a hora real. O alinhamento automático assume que as duas gravações começaram juntas; se você marcou um evento comum (dar a partida), ajuste o offset manualmente.</p>
+    </fieldset>
+    <div class="btn-row">
+      <button class="btn primary" id="btnProcess">Processar coleta</button>
+    </div>
+  </div>
+
+  <div class="card" id="auditCard" hidden>
+    <h2>Qualidade da base</h2>
+    <div class="kpis" id="auditKpis" style="margin-bottom:14px"></div>
+    <div id="auditIssues"></div>
+    <div class="sep"></div>
+    <h3>Cobertura por variável</h3>
+    <div class="tbl-scroll"><table class="compact" id="tblCoverage"></table></div>
+    <div class="sep"></div>
+    <h3>Registro da importação</h3>
+    <div class="log" id="importLog"></div>
+    <div class="sep"></div>
+    <h3>Primeiras amostras processadas</h3>
+    <div class="tbl-scroll"><table class="compact" id="tblPreview"></table></div>
+  </div>
+</section>
+
+<!-- ================= ANALISE TERMICA ================= -->
+<section class="tab" id="tab-analise" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Método de cálculo</h2>
+    <p class="hint">Balanço de energia em volume de controle e método efetividade–NTU para trocador de calor de escoamento cruzado com ambos os fluidos não-misturados.</p>
+    <div class="grid g2">
+      <div>
+        <div class="eq"><span class="lab">Calor rejeitado pelo radiador (lado líquido)</span>Q̇ = ṁ_liq · c_p,liq · (T_ent − T_sai)</div>
+        <div class="eq"><span class="lab">Capacidades térmicas e razão</span>C_h = ṁ_liq·c_p,liq   C_c = ṁ_ar·c_p,ar<br>C_mín = mín(C_h, C_c)   C_r = C_mín / C_máx</div>
+        <div class="eq"><span class="lab">Calor máximo termodinamicamente possível</span>Q̇_máx = C_mín · (T_h,ent − T_c,ent)</div>
+        <div class="eq"><span class="lab">Efetividade</span>ε = Q̇ / Q̇_máx</div>
+      </div>
+      <div>
+        <div class="eq"><span class="lab">Efetividade — escoamento cruzado, fluidos não-misturados</span>ε = 1 − exp{ (NTU<sup>0,22</sup>/C_r) · [ exp(−C_r·NTU<sup>0,78</sup>) − 1 ] }</div>
+        <div class="eq"><span class="lab">Número de unidades de transferência</span>NTU = UA / C_mín   (invertido numericamente a partir de ε)</div>
+        <div class="eq"><span class="lab">Resistências térmicas em série</span>1/UA = 1/(η_s·h_ar·A_ar) + t/(k_al·A) + 1/(h_liq·A_liq)</div>
+        <div class="eq"><span class="lab">Convecção — lado ar e lado líquido</span>Nu = C·Re<sup>m</sup>·Pr<sup>1/3</sup>   h = Nu·k / D_h<br>Nu_liq = 0,023·Re<sup>0,8</sup>·Pr<sup>0,3</sup> (turbulento)</div>
+      </div>
+    </div>
+    <div class="note" id="modeNote">Carregue uma coleta para ver os resultados.</div>
+  </div>
+
+  <div class="card" id="anaResults" hidden>
+    <h2>Resultados por regime de operação</h2>
+    <p class="hint">Amostras do regime de aquecimento (termostato fechado) são excluídas: sem vazão pelo radiador não há troca a caracterizar.</p>
+    <div class="tbl-scroll"><table id="tblRegimes"></table></div>
+    <div class="sep"></div>
+    <div class="grid g2">
+      <div>
+        <div class="chart-h"><span class="ct">Efetividade × velocidade de face do ar</span><span class="cs">cada ponto é uma amostra</span></div>
+        <div class="chart-box"><canvas id="chartEpsAir"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-h"><span class="ct">Curva ε–NTU</span><span class="cs">teórica por C_r, com os pontos medidos sobrepostos</span></div>
+        <div class="chart-box"><canvas id="chartEpsNtu"></canvas></div>
+        <div class="legend" id="legEpsNtu"></div>
+      </div>
+    </div>
+    <div class="sep"></div>
+    <div class="grid g2">
+      <div>
+        <div class="chart-h"><span class="ct">Coeficiente global UA</span><span class="cs">experimental × previsto pelas correlações</span></div>
+        <div class="chart-box"><canvas id="chartUA"></canvas></div>
+        <div class="legend" id="legUA"></div>
+      </div>
+      <div>
+        <div class="chart-h"><span class="ct">Balanço de energia do motor</span><span class="cs">calor gerado × rejeitado pelo radiador</span></div>
+        <div class="chart-box"><canvas id="chartBal"></canvas></div>
+        <div class="legend" id="legBal"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Parâmetros do modelo</h2>
+    <p class="hint">Valores iniciais estimados para o Chevrolet Cruze 1.8 (2016). Substitua pelas medições do radiador real assim que a bancada estiver instrumentada — a geometria do núcleo é o que mais afeta o UA teórico.</p>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn primary" id="btnCalibrate">Calibrar pelos dados desta coleta</button>
+      <button class="btn" id="btnRecalc">Recalcular</button>
+      <button class="btn ghost" id="btnResetParams">Restaurar padrões</button>
+    </div>
+    <div class="note" id="calibNote" hidden></div>
+    <div id="paramForm"></div>
+  </div>
+</section>
+
+<!-- ================= IA / PREVISAO ================= -->
+<section class="tab" id="tab-ia" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Previsão da temperatura do líquido de arrefecimento</h2>
+    <p class="hint">Modelo supervisionado de regressão linear regularizada (ridge) sobre janela deslizante. O alvo é a <b>variação</b> de temperatura no horizonte escolhido, não o valor absoluto — isso remove o nível, que percorre quase 60 °C durante o aquecimento, e faz a linha de base trivial equivaler a prever "continua igual".</p>
+    <div class="param-grid">
+      <div class="field">
+        <label class="fld" for="inHorizon">Horizonte de previsão <span class="unit">s</span></label>
+        <input type="number" id="inHorizon" value="300" step="30" min="30" max="900">
+      </div>
+      <div class="field">
+        <label class="fld" for="inLambda">Regularização λ</label>
+        <select id="inLambda">
+          <option value="auto" selected>automática (validação cruzada)</option>
+          <option value="1">1</option><option value="3">3</option><option value="10">10</option>
+          <option value="30">30</option><option value="80">80</option><option value="200">200</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="fld" for="inSplit">Holdout final <span class="unit">fração de treino</span></label>
+        <input type="number" id="inSplit" value="0.7" step="0.05" min="0.4" max="0.9">
+      </div>
+      <div class="field">
+        <label class="fld" for="inMaeTarget">Critério de aprovação MAE <span class="unit">°C</span></label>
+        <input type="number" id="inMaeTarget" value="2.0" step="0.1" min="0.5">
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end;gap:8px">
+        <button class="btn primary" id="btnTrain">Treinar modelo</button>
+      </div>
+      <div class="field" style="display:flex;align-items:flex-end">
+        <label class="chk"><input type="checkbox" id="inSkipWarm" checked> excluir aquecimento a frio</label>
+      </div>
+    </div>
+  </div>
+
+  <div id="iaEmpty" class="card"><div class="empty"><span class="big">🧠</span>Carregue uma coleta e clique em <b>Treinar modelo</b>.</div></div>
+
+  <div id="iaBody" hidden>
+    <div class="card">
+      <div class="spread"><h2>Desempenho</h2><span class="badge" id="verdictBadge">—</span></div>
+      <p class="hint" id="iaProto"></p>
+      <div class="kpis" id="iaKpis"></div>
+      <div class="note" id="iaNote" style="margin-top:14px"></div>
+    </div>
+
+    <div class="card">
+      <div class="chart-h"><span class="ct">Temperatura medida × prevista</span><span class="cs">a previsão está deslocada para o instante-alvo</span></div>
+      <div class="chart-box"><canvas id="chartPred"></canvas></div>
+      <div class="legend" id="legPred"></div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <div class="chart-h"><span class="ct">Previsto × medido</span><span class="cs">quanto mais próximo da diagonal, melhor</span></div>
+        <div class="chart-box"><canvas id="chartParity"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="chart-h"><span class="ct">Erro do modelo por λ</span><span class="cs">validação cruzada em blocos contíguos</span></div>
+        <div class="chart-box"><canvas id="chartLambda"></canvas></div>
+        <div class="legend" id="legLambda"></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <h3>Peso das variáveis de entrada</h3>
+        <p class="hint">Coeficientes padronizados: comparáveis entre si. Positivo = aumenta a temperatura prevista.</p>
+        <div class="chart-box"><canvas id="chartWeights"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Anomalias detectadas</h3>
+        <p class="hint">Baseadas na queda sustentada do índice de saúde (UA medido ÷ UA previsto) e em aquecimento sob condição que deveria refrigerar.</p>
+        <div class="tbl-scroll"><table class="compact" id="tblAnom"></table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ALERTAS ================= -->
+<section class="tab" id="tab-alertas" role="tabpanel" hidden>
+  <div class="card">
+    <h2>Limites e critérios de alerta</h2>
+    <div class="param-grid">
+      <div class="field"><label class="fld" for="inTWarn">Atenção <span class="unit">°C</span></label><input type="number" id="inTWarn" value="100" step="1"></div>
+      <div class="field"><label class="fld" for="inTCrit">Crítico <span class="unit">°C</span></label><input type="number" id="inTCrit" value="105" step="1"></div>
+      <div class="field"><label class="fld" for="inLead">Antecedência mínima exigida <span class="unit">s</span></label><input type="number" id="inLead" value="120" step="30"></div>
+      <div class="field" style="display:flex;align-items:flex-end"><button class="btn primary" id="btnAlerts">Reavaliar alertas</button></div>
+    </div>
+    <p class="hint" style="margin-bottom:0">O alerta preditivo é emitido quando a temperatura <b>prevista</b> para o horizonte ultrapassa o limite crítico, ainda que a temperatura medida esteja normal. A antecedência é o intervalo entre o primeiro alerta e o cruzamento real do limite.</p>
+  </div>
+
+  <div id="alertEmpty" class="card"><div class="empty"><span class="big">🔔</span>Treine o modelo na aba <b>Previsão (IA)</b> para habilitar os alertas preditivos.</div></div>
+
+  <div id="alertBody" hidden>
+    <div class="card">
+      <div class="kpis" id="alertKpis"></div>
+      <div class="note" id="alertVerdict" style="margin-top:14px"></div>
+    </div>
+    <div class="card">
+      <div class="chart-h"><span class="ct">Linha do tempo dos alertas</span><span class="cs">temperatura medida, prevista e limites</span></div>
+      <div class="chart-box"><canvas id="chartAlert"></canvas></div>
+      <div class="legend" id="legAlert"></div>
+    </div>
+    <div class="card">
+      <h3>Ocorrências</h3>
+      <div class="tbl-scroll"><table class="compact" id="tblAlerts"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RELATORIO ================= -->
+<section class="tab" id="tab-relatorio" role="tabpanel" hidden>
+  <div class="card">
+    <div class="spread">
+      <div><h2>Relatório técnico da coleta</h2>
+        <p class="hint" style="margin-bottom:0">Gerado a partir dos dados carregados e dos parâmetros vigentes.</p></div>
+      <div class="btn-row">
+        <button class="btn primary" id="btnBuildReport">Gerar relatório</button>
+        <button class="btn" id="btnPrint">Imprimir / PDF</button>
+        <button class="btn" id="btnExportCsv">Exportar série processada</button>
+        <button class="btn" id="btnExportJson">Exportar resumo (JSON)</button>
+      </div>
+    </div>
+  </div>
+  <div class="card report" id="reportBody">
+    <div class="empty"><span class="big">📄</span>Clique em <b>Gerar relatório</b>.</div>
+  </div>
+</section>
+
+<!-- ================= PROJETO ================= -->
+<section class="tab" id="tab-projeto" role="tabpanel" hidden>
+  <div class="card">
+    <div class="spread">
+      <div style="display:flex;gap:14px;align-items:center">
+        <svg style="width:56px;height:56px;flex:0 0 auto" aria-hidden="true"><use href="#atcLogo"/></svg>
+        <div>
+          <h2 style="font-size:19px">Apex Thermal Control</h2>
+          <p class="hint" style="margin:2px 0 0">Análise térmica do radiador automotivo com monitoramento e previsão de temperatura</p>
+        </div>
+      </div>
+      <span class="badge info">UniCuritiba · Transferência de Calor</span>
+    </div>
+    <div class="sep"></div>
+    <dl class="dl">
+      <dt>Bancada de ensaio</dt><dd>Chevrolet Cruze LT 1.8 (2016) — veículo próprio, instrumentado</dd>
+      <dt>Aquisição</dt><dd>Scanner OBD-II ELM327 Bluetooth + Android (Car Scanner ELM OBD2 / Torque Pro), gravação em CSV</dd>
+      <dt>Instrumentação adicional</dt><dd>ESP32 + 2× DS18B20 nas mangueiras superior e inferior do radiador (ΔT)</dd>
+      <dt>Método</dt><dd>Balanço de energia em volume de controle + efetividade–NTU (escoamento cruzado, fluidos não-misturados)</dd>
+      <dt>Camada de IA</dt><dd>Regressão regularizada em janela deslizante para prever a temperatura do líquido e detectar perda de desempenho</dd>
+      <dt>Entrega</dt><dd>Esta plataforma web + memória de cálculo + relatório da campanha de coleta</dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Itens pendentes de confirmação</h2>
+    <p class="hint">Campos do formulário da disciplina que dependem de informação que ainda não temos. O restante já está preenchido a partir do tema definido.</p>
+    <ul class="check">
+      <li class="todo">Nome da equipe registrado no formulário (a plataforma já adota <b>Apex Thermal Control</b>)</li>
+      <li class="todo">Número de integrantes e, para cada um: função, competência principal e disponibilidade semanal</li>
+      <li class="todo">Turma/período, professor(a) responsável e data da aula</li>
+      <li class="todo">Prazo da primeira entrega e data da entrega seguinte</li>
+      <li class="todo">Modelo do scanner OBD-II adquirido (define o que cabe no escopo mínimo)</li>
+      <li class="todo">Acesso a laboratório da UniCuritiba: termopar, multímetro, termômetro infravermelho, fonte</li>
+    </ul>
+    <div class="note warn">Dois riscos de disponibilidade da bancada: (1) o Cruze está anunciado para venda — se sair antes das campanhas de coleta, é preciso um veículo substituto, e o método funciona em qualquer carro com OBD-II; (2) os ponteiros de rotação e velocidade do painel pararam de funcionar, o que pode indicar problema no barramento CAN ou no cluster. Se os PIDs 010C e 010D vierem zerados, a rotação sai do próprio scanner e a velocidade passa a vir do GPS do celular.</div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>Problema e produto</h3>
+      <h4>Problema real</h4>
+      <p>O sistema de arrefecimento veicular opera de forma reativa: o eletroventilador só é acionado quando o líquido já atingiu o setpoint. Não existe previsão de tendência térmica nem indicador de perda de desempenho do radiador — obstrução de aletas, incrustação interna, fluido degradado — e a falha só se manifesta quando ocorre o superaquecimento.</p>
+      <h4>Usuário ou aplicação</h4>
+      <p>Motoristas de veículos leves e oficinas de manutenção preventiva; extensível à gestão de frotas.</p>
+      <h4>Produto proposto</h4>
+      <p>Aplicativo web (esta plataforma) e estudo técnico: dashboard de monitoramento acoplado à análise térmica do radiador.</p>
+      <h4>Benefício esperado</h4>
+      <p>Antecipar o superaquecimento em minutos, permitir manutenção preditiva do radiador e quantificar sua efetividade real em operação.</p>
+    </div>
+    <div class="card">
+      <h3>Núcleo da ementa</h3>
+      <h4>Núcleo principal</h4>
+      <p>Trocadores de calor: efetividade–NTU. Núcleo associado: convecção natural e forçada.</p>
+      <h4>Conteúdos mobilizados</h4>
+      <ul class="clean">
+        <li>Primeira lei da termodinâmica em volume de controle</li>
+        <li>Balanço de energia em regime permanente</li>
+        <li>Trocador de calor de escoamento cruzado</li>
+        <li>Coeficiente global de transferência de calor (UA)</li>
+        <li>Método efetividade–NTU e sua inversão</li>
+        <li>Convecção forçada externa (Re, Pr, Nu)</li>
+        <li>Resistências térmicas em série</li>
+      </ul>
+      <h4>Variáveis principais</h4>
+      <p>Temperatura, vazão, potência térmica, NTU e efetividade; mais rotação do motor, velocidade do veículo e carga do motor como variáveis de operação.</p>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card">
+      <h3>Produto e método</h3>
+      <h4>Escopo mínimo viável</h4>
+      <p>Coletar séries temporais reais via OBD-II no veículo próprio, armazenar, calcular o calor rejeitado e a efetividade do radiador pelo método ε–NTU e apresentar os resultados em gráficos e relatórios nesta plataforma. A previsão por IA é a extensão: se não for concluída, o estudo térmico e o dashboard já se sustentam como entrega.</p>
+      <h4>Dados necessários</h4>
+      <ul class="clean">
+        <li>PIDs OBD-II: <code>0105</code> temperatura do líquido · <code>010C</code> rotação · <code>010D</code> velocidade · <code>0104</code> carga do motor · <code>010F</code> temperatura do ar de admissão</li>
+        <li>Temperatura ambiente e temperaturas de entrada e saída do radiador</li>
+        <li>Dimensões e área frontal do núcleo do radiador</li>
+        <li>Vazão da bomba estimada em função da rotação</li>
+        <li>Propriedades da mistura água/etilenoglicol 50/50</li>
+      </ul>
+      <h4>Recursos</h4>
+      <p>Sensores, simulação, dados externos e o veículo próprio como bancada real. Laboratório e microcontrolador conforme confirmação dos itens pendentes.</p>
+    </div>
+    <div class="card">
+      <h3>IA e validação</h3>
+      <h4>Função da IA</h4>
+      <p>Previsão de temperatura e detecção de anomalias.</p>
+      <h4>Entradas do modelo</h4>
+      <p>Janela deslizante das últimas leituras: temperatura atual do líquido, tendências de 60 s e 180 s, rotação, velocidade, carga, temperatura do ar de admissão, temperatura ambiente, tempo de motor ligado, ciclo do ventilador, calor rejeitado, efetividade, abertura do termostato e o desequilíbrio térmico estimado pelo mapa do motor.</p>
+      <h4>Saídas</h4>
+      <p>Temperatura prevista do líquido no horizonte configurado, recomendação de acionamento antecipado do ventilador e sinalização de anomalia por queda de efetividade.</p>
+      <h4>Validação</h4>
+      <p>Comparação ideal × real e abordagem híbrida: dados experimentais de rodagem contra o modelo analítico ε–NTU. Validação cruzada em blocos contíguos, sem embaralhar a série temporal.</p>
+      <h4>Critérios de aprovação técnica</h4>
+      <ul class="clean">
+        <li>MAE ≤ 2 °C na previsão do horizonte em dados não vistos</li>
+        <li>Efetividade coerente com a faixa de referência de radiadores automotivos de fluxo cruzado (0,40–0,70)</li>
+        <li>Alerta emitido com pelo menos 2 min de antecedência ao limite crítico</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Riscos, segurança e primeira tarefa</h3>
+    <div class="grid g2">
+      <div>
+        <h4>Risco técnico principal</h4>
+        <p>O OBD-II fornece apenas a temperatura de entrada do líquido, com resolução de 1 °C, e não a temperatura de saída do radiador. Sem ΔT não se fecha o balanço de energia. <b>Mitigação:</b> instalar dois sensores (DS18B20 ou termopar tipo K) nas mangueiras superior e inferior, ou medir com termômetro infravermelho em pontos fixos e horários controlados. Esta plataforma trata os dois casos: com ΔT medido roda em <b>modo experimental</b>; só com OBD-II roda em <b>modo modelo</b>, com o resultado explicitamente rotulado como estimativa.</p>
+        <h4>Primeira tarefa após a aula</h4>
+        <p>Validar o scanner no veículo, levantar quais PIDs o Cruze responde e gravar a primeira sessão de log de 30 minutos em ciclo urbano mais rodovia.</p>
+      </div>
+      <div>
+        <h4>Riscos de segurança</h4>
+        <ul class="clean"><li>Alta temperatura</li><li>Fluido refrigerante sob pressão</li><li>Partes móveis</li><li>Eletricidade</li></ul>
+        <h4>Como reduzir</h4>
+        <ul class="clean">
+          <li>Nunca abrir o sistema com o motor quente ou pressurizado</li>
+          <li>Medições no compartimento do motor com motor desligado, ou com o veículo parado e o ventilador travado</li>
+          <li>Coleta durante a condução feita por um segundo integrante ou por logger automático — sem manipular o notebook ao volante</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Como esta plataforma foi construída</h3>
+    <p class="hint">HTML, CSS e JavaScript sem dependências externas: abre por duplo clique no arquivo <code>index.html</code>, sem servidor e sem internet. Todo o processamento acontece no navegador — nenhum dado da coleta sai da máquina.</p>
+    <div class="tbl-scroll"><table class="compact">
+      <thead><tr><th>Módulo</th><th>Responsabilidade</th></tr></thead>
+      <tbody>
+        <tr><td><code>assets/js/thermal.js</code></td><td>Propriedades dos fluidos, correlações de convecção, ε–NTU, inversão de NTU, calibração e pipeline de cálculo</td></tr>
+        <tr><td><code>assets/js/csvio.js</code></td><td>Leitura de CSV, detecção de colunas, conversão de unidades, sincronização das fontes e auditoria da base</td></tr>
+        <tr><td><code>assets/js/model.js</code></td><td>Montagem da matriz de projeto, ridge com trava de extrapolação, validação cruzada em blocos, anomalias e alertas</td></tr>
+        <tr><td><code>assets/js/charts.js</code></td><td>Gráficos em canvas: séries temporais, dispersão, barras e mostradores</td></tr>
+        <tr><td><code>assets/js/demo.js</code></td><td>Gerador de coletas sintéticas para validar a plataforma antes da campanha real</td></tr>
+        <tr><td><code>assets/js/app.js</code></td><td>Interface, estado, renderização e relatório</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-row">
+    <div>
+      <strong style="color:var(--txt-2)">Apex Thermal Control</strong> — Análise térmica do radiador automotivo com monitoramento e previsão de temperatura<br>
+      Transferência de Calor · UniCuritiba · bancada: Chevrolet Cruze LT 1.8 (2016)
+    </div>
+    <div style="text-align:right">
+      Processamento local no navegador · sem dependências externas<br>
+      <span id="footBuild"></span>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/util.js"></script>
+<script src="assets/js/thermal.js"></script>
+<script src="assets/js/csvio.js"></script>
+<script src="assets/js/charts.js"></script>
+<script src="assets/js/model.js"></script>
+<script src="assets/js/demo.js"></script>
+<script src="assets/js/app.js"></script>
+</body>
+</html>

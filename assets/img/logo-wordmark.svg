@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 72" width="360" height="72" role="img" aria-label="Apex Thermal Control">
+  <defs>
+    <linearGradient id="wHeat" x1="0" y1="60" x2="0" y2="8" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35c8e8"/><stop offset="0.5" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff5a36"/>
+    </linearGradient>
+    <linearGradient id="wEdge" x1="4" y1="4" x2="68" y2="68" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#35c8e8"/><stop offset="1" stop-color="#ff5a36"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4,4)">
+    <rect x="2" y="2" width="60" height="60" rx="15" fill="#0e151f" stroke="url(#wEdge)" stroke-width="2.2"/>
+    <g stroke="#27384d" stroke-width="2.4" stroke-linecap="round">
+      <path d="M16 19V51"/><path d="M24 19V51"/><path d="M32 19V51"/><path d="M40 19V51"/><path d="M48 19V51"/>
+    </g>
+    <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="#0e151f" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="url(#wHeat)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="#0e151f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="url(#wHeat)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.62"/>
+  </g>
+  <text x="84" y="34" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" font-size="27" font-weight="700" letter-spacing="1.5" fill="#e9eff7">APEX</text>
+  <text x="84" y="54" font-family="Inter,Segoe UI,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="500" letter-spacing="4.4" fill="#8fa3bd">THERMAL CONTROL</text>
+</svg>
