@@ -64,11 +64,22 @@
   --sh-3:0 2px 4px rgba(13,15,20,.06), 0 20px 48px -20px rgba(13,15,20,.30);
   --sh-pop:0 8px 16px -6px rgba(13,15,20,.14), 0 32px 64px -24px rgba(13,15,20,.36);
 
+  /* prata — a cor do carro.
+     Metal nao e uma cor chapada: e um degrade que inverte no meio,
+     porque a superficie curva reflete o ceu em cima e o chao
+     embaixo. Os tokens abaixo carregam esse degrade pronto.      */
+  --silver-1:#ffffff;
+  --silver-2:#e7eaf0;
+  --silver-3:#c2c8d4;
+  --silver-4:#8e96a6;
+  --chrome:linear-gradient(180deg,#5d6574 0%,#262c36 42%,#7b8393 60%,#333a46 100%);
+  --chrome-line:linear-gradient(90deg,transparent,rgba(194,200,212,.85) 26%,rgba(255,255,255,.95) 50%,rgba(194,200,212,.85) 74%,transparent);
+
   /* botao: face, aresta e espessura */
   --btn-face-a:#ffffff;
-  --btn-face-b:#f3f4f8;
+  --btn-face-b:#e9ecf2;
   --btn-rim:#ffffff;
-  --btn-edge:#d5d9e2;
+  --btn-edge:#c2c8d4;
   --btn-ink:#171a21;
   --depth:3px;
 
@@ -128,9 +139,16 @@
   --sh-3:0 1px 0 rgba(255,255,255,.06) inset, 0 24px 60px -22px rgba(0,0,0,.95);
   --sh-pop:0 20px 60px -18px rgba(0,0,0,.95), 0 0 0 1px rgba(18,182,255,.14);
 
-  --btn-face-a:#232b3a;
-  --btn-face-b:#151a24;
-  --btn-rim:#3b465b;
+  --silver-1:#f4f7fc;
+  --silver-2:#aeb6c4;
+  --silver-3:#6d7686;
+  --silver-4:#4a5262;
+  --chrome:linear-gradient(180deg,#f2f6fc 0%,#98a1b1 38%,#525a69 60%,#cdd4df 100%);
+  --chrome-line:linear-gradient(90deg,transparent,rgba(109,118,134,.7) 24%,rgba(206,214,226,.9) 50%,rgba(109,118,134,.7) 76%,transparent);
+
+  --btn-face-a:#2a3242;
+  --btn-face-b:#161b25;
+  --btn-rim:#6d7686;
   --btn-edge:#05070a;
   --btn-ink:#e9eef7;
   --depth:5px;
@@ -215,6 +233,17 @@ header.top{
 .brand .bt1{
   font-size:15.5px;font-weight:700;letter-spacing:.02em;line-height:1.05;color:var(--ink);
 }
+/* o degrade so entra onde o recorte no texto funciona; sem ele a
+   marca continua legivel na cor de tinta                        */
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .brand .bt1{
+    background:var(--chrome);
+    -webkit-background-clip:text;background-clip:text;
+    color:transparent;
+  }
+}
+.brand svg{color:var(--silver-4)}
+.mk-arc{stroke:var(--acc)}
 .brand .bt2{
   font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:var(--ink-4);
   font-weight:500;line-height:1.4;text-transform:uppercase;
@@ -362,8 +391,8 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 /* cabecalho de secao, com numeracao de documento tecnico */
 .sec-head{display:flex;align-items:flex-end;gap:14px;margin:6px 0 18px;flex-wrap:wrap}
 .sec-head .sh-idx{
-  font-family:var(--mono);font-size:10.5px;color:var(--ink-4);letter-spacing:.16em;
-  padding-bottom:4px;
+  font-family:var(--mono);font-size:10.5px;color:var(--silver-4);letter-spacing:.16em;
+  padding-bottom:4px;font-weight:600;
 }
 .sec-head h1{font-size:21px;font-weight:660;letter-spacing:-.028em}
 .sec-head .sh-sub{color:var(--ink-3);font-size:13px;margin-left:auto;max-width:52ch;text-align:right}
@@ -385,10 +414,15 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
   transform-style:preserve-3d;will-change:transform;
 }
 .card.lift:hover{box-shadow:var(--sh-2)}
+/* fio de luz no topo, recuado para nao brigar com o canto arredondado */
+.card::before{
+  content:"";position:absolute;left:15px;right:15px;top:0;height:1px;
+  background:var(--chrome-line);opacity:.75;pointer-events:none;
+}
 /* marca de canto: detalhe de desenho tecnico, some no modo speed */
 .card.ticked::after{
   content:"";position:absolute;right:11px;top:11px;width:7px;height:7px;
-  border-top:1px solid var(--hair-strong);border-right:1px solid var(--hair-strong);
+  border-top:1px solid var(--silver-3);border-right:1px solid var(--silver-3);
   opacity:.9;pointer-events:none;
 }
 .card>h2,.card>h3{display:flex;align-items:center;gap:9px;flex-wrap:wrap}

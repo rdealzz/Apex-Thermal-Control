@@ -154,6 +154,26 @@
     ctx.save();
     ctx.translate(o.cx, o.cy);
 
+    /* Aro de metal. O degrade inverte no meio porque uma superficie
+       curva reflete o claro em cima e o escuro embaixo — e o que faz
+       o anel parecer aluminio em vez de um circulo cinza. Como a face
+       fica em cache, isto custa uma vez, nao um quadro.             */
+    if (o.bezel) {
+      var g = ctx.createLinearGradient(0, -o.R * 1.1, 0, o.R * 1.1);
+      g.addColorStop(0, '#f4f7fc');
+      g.addColorStop(0.34, '#98a1b1');
+      g.addColorStop(0.52, '#3e4553');
+      g.addColorStop(0.72, '#8b94a4');
+      g.addColorStop(1, '#d6dce6');
+      ctx.strokeStyle = g;
+      ctx.lineWidth = o.R * 0.055;
+      ctx.beginPath(); ctx.arc(0, 0, o.R * 1.06, 0, 6.284); ctx.stroke();
+      ctx.strokeStyle = 'rgba(6,7,10,.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(0, 0, o.R * 1.09, 0, 6.284); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, o.R * 1.03, 0, 6.284); ctx.stroke();
+    }
+
     ctx.lineWidth = o.R * 0.085;
     ctx.strokeStyle = o.track || 'rgba(255,255,255,.07)';
     ctx.lineCap = 'butt';
@@ -219,7 +239,11 @@
     /* ponteiro */
     var ang = A0 + SPAN * f;
     ctx.rotate(ang);
-    ctx.fillStyle = o.needleColor || '#e9eef7';
+    var ng = ctx.createLinearGradient(0, -o.R * 0.04, 0, o.R * 0.04);
+    ng.addColorStop(0, '#ffffff');
+    ng.addColorStop(0.5, '#c2c8d4');
+    ng.addColorStop(1, '#79808f');
+    ctx.fillStyle = o.needleColor || ng;
     ctx.beginPath();
     ctx.moveTo(-o.R * 0.055, -o.R * 0.032);
     ctx.lineTo(o.R * 0.84, -o.R * 0.012);
@@ -263,21 +287,27 @@
   function dialSpecs(w, h) {
     var p = S() ? S().params : { tCrit: 105, tWarn: 100 };
     var narrow = w < 620;
-    var Rc = Math.min(h * 0.42, w * (narrow ? 0.29 : 0.19));
-    var Rs = Rc * (narrow ? 0.60 : 0.70);
+    /* Nas telas largas os tres mostradores encolhem um pouco e se
+       afastam para caber o aro sem que um encoste no outro. Em tela
+       estreita nao ha essa folga, entao o aro nao entra — melhor sem
+       ele do que com os mostradores colidindo.                     */
+    var bezel = !narrow;
+    var Rc = Math.min(h * (bezel ? 0.40 : 0.42), w * (narrow ? 0.29 : 0.175));
+    var Rs = Rc * (narrow ? 0.60 : 0.68);
     var cy = h * 0.50;
     var labelY = Rc * 0.94;          /* mesma linha de base para os tres */
+    var sideX = narrow ? 0.20 : 0.17;
     var int0 = function (v) { return String(Math.round(v)); };
     return [
-      { key: 'temp', cx: narrow ? w * 0.20 : w * 0.19, cy: cy, R: Rs, labelY: labelY,
+      { key: 'temp', cx: w * sideX, cy: cy, R: Rs, labelY: labelY, bezel: bezel,
         min: 0, max: 130, label: 'COOLANT', unit: '°C',
         color: '#12b6ff', warnAt: p.tWarn, critAt: p.tCrit,
         redFrom: p.tWarn, ticks: 13, tickMajor: 3, tickFmt: int0 },
-      { key: 'rpm', cx: w * 0.5, cy: cy, R: Rc, labelY: labelY,
+      { key: 'rpm', cx: w * 0.5, cy: cy, R: Rc, labelY: labelY, bezel: bezel,
         min: 0, max: 7000, label: 'ENGINE', unit: '× 1000 rpm',
         color: '#3ff0e0', redFrom: 5800, ticks: 14, tickMajor: 2,
         tickFmt: function (v) { return String(Math.round(v / 1000)); } },
-      { key: 'spd', cx: narrow ? w * 0.80 : w * 0.81, cy: cy, R: Rs, labelY: labelY,
+      { key: 'spd', cx: w * (1 - sideX), cy: cy, R: Rs, labelY: labelY, bezel: bezel,
         min: 0, max: 180, label: 'SPEED', unit: 'km/h',
         color: '#2fe08a', ticks: 12, tickMajor: 3, tickFmt: int0 }
     ];

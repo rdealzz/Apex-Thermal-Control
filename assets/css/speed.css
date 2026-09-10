@@ -91,8 +91,8 @@
 }
 [data-mode="speed"] .card{box-shadow:var(--sh-2)}
 [data-mode="speed"] .card.ticked::after{border-color:var(--acc);opacity:.55}
-[data-mode="speed"] .kpi .k-lab,
-[data-mode="speed"] .sec-head .sh-idx{color:var(--acc);opacity:.85}
+[data-mode="speed"] .kpi .k-lab{color:var(--acc);opacity:.85}
+[data-mode="speed"] .sec-head .sh-idx{color:var(--silver-2);opacity:.9}
 [data-mode="speed"] .kpi .k-val{
   color:var(--cyan);text-shadow:0 0 18px color-mix(in srgb,var(--cyan) 45%,transparent);
 }
@@ -120,8 +120,9 @@
   background:
     linear-gradient(180deg, color-mix(in srgb,var(--surface) 94%,transparent), color-mix(in srgb,var(--canvas-2) 96%,transparent));
   padding:16px;margin-bottom:14px;overflow:hidden;
-  box-shadow:var(--sh-3), 0 0 0 1px color-mix(in srgb,var(--acc) 12%,transparent) inset;
+  box-shadow:var(--sh-3), 0 0 0 1px color-mix(in srgb,var(--silver-3) 22%,transparent) inset;
 }
+
 /* cantos de mira: detalhe de HUD, quatro tracos finos */
 .hud-frame::before,.hud-frame::after{
   content:"";position:absolute;width:16px;height:16px;pointer-events:none;
@@ -150,7 +151,8 @@
 /* fita de LEDs de troca de marcha */
 .shift-strip{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
 .shift-strip .led{
-  width:100%;max-width:40px;height:6px;border-radius:3px;background:var(--surface-3);
+  width:100%;max-width:40px;height:6px;border-radius:3px;
+  background:linear-gradient(180deg,var(--silver-4),var(--surface-3));
   border:1px solid var(--hair);
   transform:scaleY(var(--s,1));transform-origin:center;
   transition:background .09s linear, box-shadow .09s linear;
