@@ -71,13 +71,18 @@
     if (!t) { t = document.createElement('div'); t.className = 'tip'; b.appendChild(t); }
     return t;
   }
+  /* Atribuir canvas.width realoca o buffer e limpa tudo. Fazer isso a
+     cada quadro de uma animacao custa caro sem motivo, entao so mexe
+     nas dimensoes quando elas mudaram de verdade.                   */
   function fit(canvas, h) {
     var dpr = window.devicePixelRatio || 1;
     var w = canvas.parentNode ? canvas.parentNode.clientWidth : 600;
     w = Math.max(w || 600, 200);
-    canvas.style.height = h + 'px';
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
+    var W = Math.round(w * dpr), H = Math.round(h * dpr);
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W; canvas.height = H;
+      canvas.style.height = h + 'px';
+    }
     var ctx = canvas.getContext('2d');
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     return { ctx: ctx, w: w, h: h };
@@ -679,6 +684,365 @@
         lx += w;
       });
     }
+    register(canvas, draw); draw();
+    return { draw: draw };
+  };
+
+  /* ============================================================
+     Superficie 3D
+     ------------------------------------------------------------
+     Uma grandeza que depende de duas outras nao cabe numa curva.
+     Efetividade em funcao de velocidade e rotacao e uma superficie,
+     e mostrar superficie como superficie poupa a conversa toda de
+     "imagine varias curvas sobrepostas".
+
+     Sem biblioteca: projecao propria, algoritmo do pintor e uma luz
+     direcional. Cada quadrilatero e sombreado pela sua inclinacao —
+     e o que faz o relevo aparecer, mais do que a cor.
+
+     Gira com o ponteiro e sai girando por inercia quando solta. O
+     laco de quadro so existe enquanto ha rotacao acontecendo.
+     ============================================================ */
+  function hexRgb(h) {
+    h = h.trim();
+    if (h[0] === '#') h = h.slice(1);
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+  function rampAt(stops, t) {
+    t = U.clamp(t, 0, 1);
+    var seg = 1 / (stops.length - 1);
+    var i = Math.min(Math.floor(t / seg), stops.length - 2);
+    var f = (t - i * seg) / seg;
+    var a = stops[i], b = stops[i + 1];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  }
+
+  G.surface = function (canvas, cfg) {
+    canvas.__atcCfg = cfg;
+    var st = canvas.__surf;
+    if (!st) {
+      st = canvas.__surf = {
+        yaw: -0.72, el: 0.56,      /* giro e elevacao da camera, em radianos */
+        yawV: 0, elV: 0,
+        drag: null, stop: null, size: null
+      };
+    }
+
+    /* Camera: gira a cena em torno do eixo vertical, depois inclina.
+       A profundidade sai da mesma conta e serve para ordenar as faces
+       da mais distante para a mais proxima.                          */
+    function project(x, y, z, sy_, cy_, se, ce) {
+      var xr = x * cy_ - y * sy_;
+      var yr = x * sy_ + y * cy_;
+      return {
+        x: xr,
+        y: yr * se - z * ce,
+        d: yr * ce - z * se
+      };
+    }
+
+    function draw() {
+      var c = canvas.__atcCfg;
+      if (!c) return;
+      var H = c.height || 340;
+      var f = fit(canvas, H), ctx = f.ctx, W = f.w;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = THEME.bg; ctx.fillRect(0, 0, W, H);
+
+      var Z = c.z;                       /* matriz [j][i], j = eixo Y */
+      if (!Z || !Z.length) {
+        ctx.fillStyle = THEME.txt; ctx.font = '13px system-ui,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(c.emptyMsg || 'Sem dados', W / 2, H / 2);
+        return;
+      }
+      var ny = Z.length, nx = Z[0].length;
+      var zLo = c.zMin, zHi = c.zMax;
+      if (zLo === undefined || zHi === undefined) {
+        zLo = Infinity; zHi = -Infinity;
+        for (var j = 0; j < ny; j++) for (var i = 0; i < nx; i++) {
+          var v = Z[j][i];
+          if (isFinite(v)) { if (v < zLo) zLo = v; if (v > zHi) zHi = v; }
+        }
+      }
+      if (!isFinite(zLo) || zHi - zLo < 1e-9) { zLo = 0; zHi = 1; }
+
+      var sy_ = Math.sin(st.yaw), cy_ = Math.cos(st.yaw);
+      var se = Math.sin(st.el), ce = Math.cos(st.el);
+      var zScale = c.zScale === undefined ? 0.88 : c.zScale;
+
+      /* posicoes normalizadas: a grade vive em [-1,1] x [-1,1] */
+      var gx = new Array(nx), gy = new Array(ny);
+      for (i = 0; i < nx; i++) gx[i] = nx > 1 ? (i / (nx - 1)) * 2 - 1 : 0;
+      for (j = 0; j < ny; j++) gy[j] = ny > 1 ? (j / (ny - 1)) * 2 - 1 : 0;
+      function zn(j, i) {
+        var v = Z[j][i];
+        return isFinite(v) ? ((v - zLo) / (zHi - zLo)) * zScale : 0;
+      }
+
+      /* projeta a grade inteira uma vez */
+      var P = new Array(ny);
+      var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (j = 0; j < ny; j++) {
+        P[j] = new Array(nx);
+        for (i = 0; i < nx; i++) {
+          var p = project(gx[i], gy[j], zn(j, i), sy_, cy_, se, ce);
+          P[j][i] = p;
+          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+        }
+      }
+      var narrow = W < 560;
+      var divs = narrow ? 2 : 4;
+      var stepX = Math.max(1, Math.round((nx - 1) / divs)), stepY = Math.max(1, Math.round((ny - 1) / divs));
+      /* o piso tambem precisa caber no enquadramento, e junto com ele a
+         faixa onde os rotulos dos eixos vao ser escritos             */
+      var floor = [];
+      for (var k = 0; k < 4; k++) {
+        var fx = (k === 0 || k === 3) ? -1 : 1, fy = (k < 2) ? -1 : 1;
+        var q = project(fx, fy, 0, sy_, cy_, se, ce);
+        floor.push(q);
+      }
+      var RIM = narrow ? 1.34 : 1.52;
+      for (k = 0; k < 4; k++) {
+        var rx = (k === 0 || k === 3) ? -RIM : RIM, ry = (k < 2) ? -RIM : RIM;
+        var r = project(rx, ry, 0, sy_, cy_, se, ce);
+        if (r.x < minX) minX = r.x; if (r.x > maxX) maxX = r.x;
+        if (r.y < minY) minY = r.y; if (r.y > maxY) maxY = r.y;
+      }
+
+      var padL = 16, padR = 16, padT = c.zLabel ? 34 : 14, padB = 14;
+      var sw = Math.max(W - padL - padR, 20), sh = Math.max(H - padT - padB, 20);
+      var scale = Math.min(sw / Math.max(maxX - minX, 1e-6), sh / Math.max(maxY - minY, 1e-6));
+      var ox = padL + (sw - (maxX - minX) * scale) / 2 - minX * scale;
+      var oy = padT + (sh - (maxY - minY) * scale) / 2 - minY * scale;
+      function SX(p) { return ox + p.x * scale; }
+      function SY(p) { return oy + p.y * scale; }
+
+      /* ---- piso e paredes de referencia ---- */
+      ctx.strokeStyle = THEME.grid; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(SX(floor[0]), SY(floor[0]));
+      for (k = 1; k < 4; k++) ctx.lineTo(SX(floor[k]), SY(floor[k]));
+      ctx.closePath(); ctx.stroke();
+      /* Em tela estreita a mesma quantidade de numeros vira uma pilha
+         ilegivel. A grade e a escala rareiam junto com o espaco.    */
+      ctx.strokeStyle = THEME.grid;
+      for (i = 0; i < nx; i += stepX) {
+        var a = project(gx[i], -1, 0, sy_, cy_, se, ce), b = project(gx[i], 1, 0, sy_, cy_, se, ce);
+        ctx.beginPath(); ctx.moveTo(SX(a), SY(a)); ctx.lineTo(SX(b), SY(b)); ctx.stroke();
+      }
+      for (j = 0; j < ny; j += stepY) {
+        var a2 = project(-1, gy[j], 0, sy_, cy_, se, ce), b2 = project(1, gy[j], 0, sy_, cy_, se, ce);
+        ctx.beginPath(); ctx.moveTo(SX(a2), SY(a2)); ctx.lineTo(SX(b2), SY(b2)); ctx.stroke();
+      }
+
+      /* ---- faces, da mais distante para a mais proxima ---- */
+      var stops = (c.ramp || ['#c9ced9', '#2450e0', '#d1592a']).map(hexRgb);
+      var quads = [];
+      for (j = 0; j < ny - 1; j++) {
+        for (i = 0; i < nx - 1; i++) {
+          var p00 = P[j][i], p10 = P[j][i + 1], p11 = P[j + 1][i + 1], p01 = P[j + 1][i];
+          quads.push({
+            d: (p00.d + p10.d + p11.d + p01.d) / 4,
+            a: p00, b: p10, cc: p11, e: p01,
+            zm: (zn(j, i) + zn(j, i + 1) + zn(j + 1, i + 1) + zn(j + 1, i)) / 4,
+            /* inclinacao em mundo, para a luz */
+            nx1: gx[i + 1] - gx[i], nz1: zn(j, i + 1) - zn(j, i),
+            ny2: gy[j + 1] - gy[j], nz2: zn(j + 1, i) - zn(j, i)
+          });
+        }
+      }
+      quads.sort(function (u, v) { return v.d - u.d; });
+
+      var LX = -0.42, LY = -0.5, LZ = 0.76;    /* luz vinda de cima e da esquerda */
+      var edge = c.edge !== false;
+      for (k = 0; k < quads.length; k++) {
+        var q2 = quads[k];
+        /* normal do quadrilatero pelo produto vetorial dos dois lados */
+        var ax = q2.nx1, az = q2.nz1, by = q2.ny2, bz = q2.nz2;
+        var nX = -az * by, nY = -ax * bz, nZ = ax * by;
+        var len = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1;
+        var lam = (nX * LX + nY * LY + nZ * LZ) / len;
+        var shade = 0.62 + 0.38 * U.clamp(Math.abs(lam), 0, 1);
+        var col = rampAt(stops, q2.zm / zScale);
+        ctx.fillStyle = 'rgb(' + Math.round(col[0] * shade) + ',' + Math.round(col[1] * shade) + ',' + Math.round(col[2] * shade) + ')';
+        ctx.beginPath();
+        ctx.moveTo(SX(q2.a), SY(q2.a));
+        ctx.lineTo(SX(q2.b), SY(q2.b));
+        ctx.lineTo(SX(q2.cc), SY(q2.cc));
+        ctx.lineTo(SX(q2.e), SY(q2.e));
+        ctx.closePath();
+        ctx.fill();
+        if (edge) { ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 0.6; ctx.stroke(); }
+      }
+
+      /* ---- marcador do ponto de operacao ---- */
+      var markerLabel = null;
+      if (c.marker && isFinite(c.marker.x) && isFinite(c.marker.y)) {
+        var mi = U.clamp((c.marker.x - c.x.min) / (c.x.max - c.x.min || 1), 0, 1) * 2 - 1;
+        var mj = U.clamp((c.marker.y - c.y.min) / (c.y.max - c.y.min || 1), 0, 1) * 2 - 1;
+        /* altura interpolada na grade */
+        var fi = (mi + 1) / 2 * (nx - 1), fj = (mj + 1) / 2 * (ny - 1);
+        var i0 = Math.min(Math.floor(fi), nx - 2), j0 = Math.min(Math.floor(fj), ny - 2);
+        var tx = fi - i0, ty = fj - j0;
+        var zm = zn(j0, i0) * (1 - tx) * (1 - ty) + zn(j0, i0 + 1) * tx * (1 - ty) +
+                 zn(j0 + 1, i0) * (1 - tx) * ty + zn(j0 + 1, i0 + 1) * tx * ty;
+        var base = project(mi, mj, 0, sy_, cy_, se, ce);
+        var top = project(mi, mj, zm, sy_, cy_, se, ce);
+        ctx.strokeStyle = c.markerColor || THEME.txtStrong;
+        ctx.lineWidth = 1.4; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(SX(base), SY(base)); ctx.lineTo(SX(top), SY(top)); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = c.markerColor || THEME.txtStrong;
+        ctx.beginPath(); ctx.arc(SX(top), SY(top), 4, 0, 6.284); ctx.fill();
+        markerLabel = c.marker.label ? { t: c.marker.label, x: SX(top), y: SY(top) - 13 } : null;
+      }
+
+      /* ---- rotulos, sempre na borda que esta virada para quem olha ----
+         Girar a cena troca qual borda do piso fica na frente. Escrever
+         sempre na mesma borda deixaria os numeros atras do relevo em
+         metade das posicoes, entao a borda e escolhida pela distancia. */
+      /* A borda certa nao e a mais proxima da camera, e a que aparece
+         mais em baixo na tela: e la que o olho espera a escala, e e o
+         unico lugar onde ela nao cai em cima do relevo.             */
+      var yEdge = project(0, -1, 0, sy_, cy_, se, ce).y > project(0, 1, 0, sy_, cy_, se, ce).y ? -1 : 1;
+      var xEdge = project(-1, 0, 0, sy_, cy_, se, ce).y > project(1, 0, 0, sy_, cy_, se, ce).y ? -1 : 1;
+
+      /* Girar coloca qualquer rotulo em cima do relevo mais cedo ou
+         mais tarde. Em vez de brigar com a geometria, cada rotulo leva
+         a propria pastilha de fundo: fica legivel em qualquer angulo. */
+      /* Cada rotulo leva a propria pastilha de fundo, entao continua
+         legivel em cima do relevo. E cada pastilha desenhada entra
+         numa lista: a proxima que colidir com uma ja escrita e
+         simplesmente omitida. Assim os nomes dos eixos, que sao
+         desenhados primeiro, nunca ficam cobertos por um numero.   */
+      var taken = [];
+      function chip(txt, px, py, font, strong, force) {
+        ctx.font = font;
+        var w = ctx.measureText(txt).width;
+        var r = { l: px - w / 2 - 4, t: py - 8, rt: px + w / 2 + 4, b: py + 8 };
+        if (!force) {
+          for (var z2 = 0; z2 < taken.length; z2++) {
+            var o2 = taken[z2];
+            if (r.l < o2.rt && r.rt > o2.l && r.t < o2.b && r.b > o2.t) return;
+          }
+        }
+        taken.push(r);
+        ctx.globalAlpha = 0.88;
+        ctx.fillStyle = THEME.bg;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(r.l, r.t, r.rt - r.l, 16, 4);
+        else ctx.rect(r.l, r.t, r.rt - r.l, 16);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.fillStyle = strong ? THEME.txtStrong : THEME.txt;
+        ctx.fillText(txt, px, py);
+      }
+
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      var axFont = '600 11px system-ui,sans-serif';
+      var tickFont = '10.5px ui-monospace,monospace';
+      var xf = c.x.fmt || String, yf = c.y.fmt || String;
+      var axR = narrow ? 1.30 : 1.46, tkR = narrow ? 1.08 : 1.14;
+
+      if (markerLabel) chip(markerLabel.t, markerLabel.x, markerLabel.y, axFont, true, true);
+      if (c.xLabel) {
+        var lx = project(0, yEdge * axR, 0, sy_, cy_, se, ce);
+        chip(c.xLabel, SX(lx), SY(lx), axFont, true, true);
+      }
+      if (c.yLabel) {
+        var ly = project(xEdge * axR, 0, 0, sy_, cy_, se, ce);
+        chip(c.yLabel, SX(ly), SY(ly), axFont, true, true);
+      }
+      for (i = 0; i < nx; i += stepX) {
+        var t = project(gx[i], yEdge * tkR, 0, sy_, cy_, se, ce);
+        chip(xf(c.x.min + (c.x.max - c.x.min) * (i / (nx - 1))), SX(t), SY(t), tickFont, false);
+      }
+      for (j = 0; j < ny; j += stepY) {
+        var t2 = project(xEdge * tkR, gy[j], 0, sy_, cy_, se, ce);
+        chip(yf(c.y.min + (c.y.max - c.y.min) * (j / (ny - 1))), SX(t2), SY(t2), tickFont, false);
+      }
+      if (c.zLabel) {
+        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.font = '600 12px system-ui,sans-serif';
+        ctx.fillStyle = THEME.txtStrong;
+        ctx.fillText(c.zLabel, 12, 10);
+        if (c.zNote && !narrow) {
+          ctx.font = '10.5px ui-monospace,monospace';
+          ctx.fillStyle = THEME.txt;
+          ctx.fillText(c.zNote, 12, 26);
+        }
+      }
+      if (c.hint) {
+        ctx.font = '10.5px system-ui,sans-serif';
+        ctx.fillStyle = THEME.txt;
+        ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
+        ctx.fillText(c.hint, W - 12, H - 8);
+      }
+    }
+
+    /* ---- giro pelo ponteiro, com inercia ao soltar ---- */
+    if (!st.bound) {
+      st.bound = true;
+      var M = ATC.Motion;
+
+      function coast() {
+        if (st.stop || !M) return;
+        st.stop = M.onFrame(function (dt) {
+          if (st.drag) return;                       /* arrastando: o dedo manda */
+          st.yaw += st.yawV * dt;
+          st.el += st.elV * dt;
+          st.el = U.clamp(st.el, 0.12, 1.44);
+          var k = Math.exp(-2.6 * dt);               /* atrito */
+          st.yawV *= k; st.elV *= k;
+          draw();
+          if (Math.abs(st.yawV) < 0.02 && Math.abs(st.elV) < 0.02) {
+            st.yawV = st.elV = 0; st.stop = null;
+            draw();
+            return false;
+          }
+        });
+      }
+
+      canvas.addEventListener('pointerdown', function (ev) {
+        st.drag = { x: ev.clientX, y: ev.clientY, t: performance.now(), vx: 0, vy: 0 };
+        st.yawV = st.elV = 0;
+        canvas.setPointerCapture(ev.pointerId);
+        canvas.style.cursor = 'grabbing';
+      });
+      canvas.addEventListener('pointermove', function (ev) {
+        if (!st.drag) return;
+        var now = performance.now();
+        var dt = Math.max((now - st.drag.t) / 1000, 1 / 240);
+        var dx = ev.clientX - st.drag.x, dy = ev.clientY - st.drag.y;
+        st.yaw += dx * 0.008;
+        st.el = U.clamp(st.el - dy * 0.006, 0.12, 1.44);
+        st.drag.vx = (dx * 0.008) / dt;
+        st.drag.vy = (-dy * 0.006) / dt;
+        st.drag.x = ev.clientX; st.drag.y = ev.clientY; st.drag.t = now;
+        draw();
+      });
+      function release(ev) {
+        if (!st.drag) return;
+        /* a velocidade do gesto vira velocidade de giro: solta girando */
+        st.yawV = U.clamp(st.drag.vx, -6, 6);
+        st.elV = U.clamp(st.drag.vy, -4, 4);
+        st.drag = null;
+        canvas.style.cursor = 'grab';
+        if (Math.abs(st.yawV) > 0.02 || Math.abs(st.elV) > 0.02) coast();
+      }
+      canvas.addEventListener('pointerup', release);
+      canvas.addEventListener('pointercancel', release);
+      canvas.style.cursor = 'grab';
+      /* pan-y deixa o dedo rolar a pagina verticalmente: so o arrasto
+         horizontal gira. Prender os dois seria transformar o grafico
+         numa armadilha no meio da rolagem.                          */
+      canvas.style.touchAction = 'pan-y';
+    }
+
     register(canvas, draw); draw();
     return { draw: draw };
   };

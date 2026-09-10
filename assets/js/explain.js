@@ -290,6 +290,219 @@
   }
 
   /* ============================================================
+     6. Superficie interativa
+     ------------------------------------------------------------
+     Os parametros que mais mandam no resultado, com o efeito de cada
+     um visivel no relevo. E deliberadamente uma caixa de areia: nada
+     aqui toca na analise ate alguem clicar em aplicar, porque mexer
+     num slider para entender nao pode reescrever a memoria de
+     calculo de uma coleta real.
+     ============================================================ */
+  var KNOBS = [
+    { k: 'kRam',     lab: 'Ar que chega à face',        min: 0.05, max: 0.60, step: 0.01, dec: 2, unit: '',
+      why: 'Fração da velocidade do carro que vence o para-choque e chega ao núcleo. O resto se perde no cofre.' },
+    { k: 'vFan',     lab: 'Ar do eletroventilador',      min: 0,    max: 6,    step: 0.1,  dec: 1, unit: 'm/s',
+      why: 'O que a ventoinha entrega sozinha. É tudo que existe quando o carro está parado.' },
+    { k: 'pumpDisp', lab: 'Vazão da bomba por rotação',  min: 0.010, max: 0.080, step: 0.001, dec: 3, unit: 'L/rev',
+      why: 'A bomba é movida pelo motor. Mais vazão tira mais calor no total, mas cada quilo de líquido sai menos resfriado.' },
+    { k: 'coreD',    lab: 'Profundidade do núcleo',      min: 0.012, max: 0.060, step: 0.001, dec: 3, unit: 'm',
+      why: 'Núcleo mais fundo tem mais área de troca — e mais perda de carga no lado do ar.' },
+    { k: 'areaDens', lab: 'Densidade de aletas',         min: 400,  max: 2200, step: 25,   dec: 0, unit: 'm²/m³',
+      why: 'Área de troca por metro cúbico de núcleo. É o que se perde quando as aletas entopem de barro e inseto.' },
+    { k: 'uaScale',  lab: 'Fator de calibração do UA',   min: 0.40, max: 1.80, step: 0.01, dec: 2, unit: '',
+      why: 'A correção que a calibração aplica ao UA teórico. Mexer aqui é dizer que o núcleo real é melhor ou pior que o modelo.' }
+  ];
+
+  var NX = 26, NY = 22;                 /* resolucao da grade */
+  var pg = { work: null, base: null, m: null, dirty: false, raf: null };
+
+  /* Calor rejeitado para uma velocidade e uma rotacao, com os
+     parametros dados. E a mesma cadeia da aba de analise: vazao da
+     bomba, vazao de ar, UA pelas correlacoes, NTU, efetividade.   */
+  function heatAt(speed, rpm, p, m) {
+    var T = ATC.Thermal;
+    var cf = T.coolantFlow(rpm, m.tHot, p);
+    /* o ventilador sai de cena em torno da velocidade em que o ar de
+       marcha iguala o que ele entrega, e sai gradualmente: um degrau
+       ali seria artefato do modelo, nao comportamento do carro     */
+    var vSwitch = p.vFan / Math.max(p.kRam, 1e-3) * 3.6;
+    var fanF = U.clamp((vSwitch + 10 - speed) / 20, 0, 1);
+    var af = T.airFlow(speed, fanF, m.tAmb, p);
+    var um = T.uaModel(af.mdot, m.tAmb, cf.mdot, m.tHot, p);
+    var Ch = cf.mdot * cf.prop.cp, Cc = af.mdot * af.prop.cp;
+    var Cmin = Math.min(Ch, Cc), Cmax = Math.max(Ch, Cc);
+    var Cr = Cmax > 0 ? Cmin / Cmax : 0;
+    var ntu = Cmin > 0 ? um.UA / Cmin : 0;
+    var e = ATC.Thermal.epsCrossflow(ntu, Cr);
+    return { q: e * Cmin * (m.tHot - m.tAmb) / 1000, eps: e, ua: um.UA };
+  }
+
+  function surfaceOf(p, m) {
+    var Z = new Array(NY);
+    for (var j = 0; j < NY; j++) {
+      Z[j] = new Array(NX);
+      var rpm = 800 + (5200 - 800) * (j / (NY - 1));
+      for (var i = 0; i < NX; i++) {
+        var v = 140 * (i / (NX - 1));
+        Z[j][i] = heatAt(v, rpm, p, m).q;
+      }
+    }
+    return Z;
+  }
+
+  function paintSurface(G, COL) {
+    var m = pg.m;
+    var Z = surfaceOf(pg.work, m);
+    /* a escala do eixo vertical fica presa aos parametros originais:
+       sem isso a superficie inteira se reescala a cada slider e a
+       mudanca some da vista                                        */
+    if (!pg.zRange) {
+      var Z0 = surfaceOf(pg.base, m), lo = Infinity, hi = -Infinity;
+      for (var j = 0; j < Z0.length; j++) for (var i = 0; i < Z0[j].length; i++) {
+        var v = Z0[j][i];
+        if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+      }
+      pg.zRange = [0, Math.max(hi * 1.12, 1)];
+    }
+    G.surface($('#chartPlay'), {
+      height: 340, z: Z, zMin: pg.zRange[0], zMax: pg.zRange[1],
+      x: { min: 0, max: 140, fmt: function (v) { return U.br(v, 0); } },
+      y: { min: 800, max: 5200, fmt: function (v) { return U.br(v / 1000, 1) + 'k'; } },
+      xLabel: 'velocidade (km/h)', yLabel: 'rotação (rpm)',
+      zLabel: 'calor rejeitado (kW)',
+      zNote: (function () {
+        var lo = Infinity, hi = -Infinity;
+        for (var a = 0; a < Z.length; a++) for (var b2 = 0; b2 < Z[a].length; b2++) {
+          var v = Z[a][b2];
+          if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+        }
+        return U.br(hi, 1) + ' kW no pico  ·  ' + U.br(lo, 1) + ' kW parado em marcha lenta';
+      })(),
+      ramp: COL.surfRamp,
+      markerColor: COL.mark,
+      marker: { x: m.speed, y: m.rpm, label: 'esta coleta' },
+      hint: 'arraste para girar'
+    });
+  }
+
+  function paintOut(COL) {
+    var m = pg.m;
+    var now = heatAt(m.speed, m.rpm, pg.work, m);
+    var was = heatAt(m.speed, m.rpm, pg.base, m);
+    function cell(lab, v0, v1, dec, unit) {
+      var d = v0 !== 0 ? 100 * (v1 - v0) / Math.abs(v0) : NaN;
+      var cls = !isFinite(d) || Math.abs(d) < 0.5 ? '' : (d > 0 ? 'up' : 'down');
+      var txt = !isFinite(d) || Math.abs(d) < 0.5 ? 'igual ao atual'
+              : (d > 0 ? '+' : '−') + U.br(Math.abs(d), 0) + ' % do atual';
+      return '<div class="pg-cell"><div class="pc-l">' + lab + '</div>' +
+        '<div class="pc-v">' + U.br(v1, dec) + (unit ? '<small> ' + unit + '</small>' : '') + '</div>' +
+        '<div class="pc-d ' + cls + '">' + txt + '</div></div>';
+    }
+    $('#pgOut').innerHTML =
+      cell('CALOR', was.q, now.q, 1, 'kW') +
+      cell('EFETIVIDADE', was.eps, now.eps, 3, '') +
+      cell('CONDUTÂNCIA', was.ua, now.ua, 0, 'W/K');
+
+    var pico = 0, picoV = 0;
+    for (var v = 0; v <= 140; v += 5) {
+      var h = heatAt(v, m.rpm, pg.work, m).q;
+      if (h > pico) { pico = h; picoV = v; }
+    }
+    $('#exReadPlay').innerHTML = 'No ponto de operação médio desta coleta — <b>' + U.br(m.speed, 0) +
+      ' km/h</b> a <b>' + U.br(m.rpm, 0) + ' rpm</b>, marcado na superfície — estes parâmetros dariam <b>' +
+      U.br(now.q, 1) + ' kW</b> contra os ' + U.br(was.q, 1) +
+      ' kW de agora. O relevo sobe para a direita porque velocidade traz ar, e sobe para o fundo porque rotação traz vazão. ' +
+      'Onde ele achata, o lado do ar virou o gargalo e girar mais alto parou de ajudar.';
+  }
+
+  /* O redesenho e agendado para o proximo quadro: arrastar um slider
+     dispara dezenas de eventos por segundo e recalcular a superficie
+     em todos eles seria trabalho jogado fora.                      */
+  function schedule(G, COL) {
+    if (pg.raf) return;
+    pg.raf = requestAnimationFrame(function () {
+      pg.raf = null;
+      paintSurface(G, COL);
+      paintOut(COL);
+    });
+  }
+
+  function changed() {
+    for (var i = 0; i < KNOBS.length; i++) {
+      var k = KNOBS[i].k;
+      if (Math.abs(pg.work[k] - pg.base[k]) > 1e-9) return true;
+    }
+    return false;
+  }
+
+  function syncButtons() {
+    var on = changed();
+    $('#btnPgApply').disabled = !on;
+    $('#btnPgReset').disabled = !on;
+    KNOBS.forEach(function (kn) {
+      var row = document.getElementById('pg-row-' + kn.k);
+      if (row) row.classList.toggle('moved', Math.abs(pg.work[kn.k] - pg.base[kn.k]) > 1e-9);
+    });
+  }
+
+  function renderPlayground(S, G, COL) {
+    var host = $('#pgControls');
+    if (!host) return;
+    pg.m = operatingPoint(S);
+    pg.base = JSON.parse(JSON.stringify(S.params));
+    pg.work = JSON.parse(JSON.stringify(S.params));
+    pg.zRange = null;
+
+    host.innerHTML = KNOBS.map(function (kn) {
+      return '<div class="pg-row" id="pg-row-' + kn.k + '">' +
+        '<div class="pg-top"><span class="pg-lab">' + kn.lab + '</span>' +
+        '<span class="pg-val" id="pg-val-' + kn.k + '">' + U.br(pg.work[kn.k], kn.dec) +
+        (kn.unit ? '<em>' + kn.unit + '</em>' : '') + '</span></div>' +
+        '<input type="range" id="pg-in-' + kn.k + '" min="' + kn.min + '" max="' + kn.max +
+        '" step="' + kn.step + '" value="' + pg.work[kn.k] + '" aria-label="' + kn.lab + '">' +
+        '<div class="pg-why">' + kn.why + '</div></div>';
+    }).join('');
+
+    KNOBS.forEach(function (kn) {
+      var el = document.getElementById('pg-in-' + kn.k);
+      el.addEventListener('input', function () {
+        pg.work[kn.k] = parseFloat(el.value);
+        var lab = document.getElementById('pg-val-' + kn.k);
+        lab.innerHTML = U.br(pg.work[kn.k], kn.dec) + (kn.unit ? '<em>' + kn.unit + '</em>' : '');
+        syncButtons();
+        schedule(G, COL);
+      });
+    });
+
+    $('#btnPgApply').onclick = function () {
+      if (!ATC.App) return;
+      var st = ATC.App.state();
+      KNOBS.forEach(function (kn) { st.params[kn.k] = pg.work[kn.k]; });
+      /* mexer na geometria invalida a calibracao anterior: ela foi
+         ajustada contra outro nucleo                                */
+      st.params.uaCalibrated = 0;
+      ATC.App.recompute();
+      if (ATC.Motion) ATC.Motion.toast('Parâmetros aplicados — a análise foi recalculada', null, 3000);
+      if (ATC.Audio) ATC.Audio.play('relay');
+    };
+    $('#btnPgReset').onclick = function () {
+      KNOBS.forEach(function (kn) {
+        pg.work[kn.k] = pg.base[kn.k];
+        var el = document.getElementById('pg-in-' + kn.k);
+        if (el) el.value = pg.base[kn.k];
+        var lab = document.getElementById('pg-val-' + kn.k);
+        if (lab) lab.innerHTML = U.br(pg.base[kn.k], kn.dec) + (kn.unit ? '<em>' + kn.unit + '</em>' : '');
+      });
+      syncButtons();
+      schedule(G, COL);
+    };
+
+    syncButtons();
+    paintSurface(G, COL);
+    paintOut(COL);
+  }
+
+  /* ============================================================
      Ponto de operacao medio da parte util da coleta
      ============================================================ */
   function operatingPoint(S) {
@@ -339,6 +552,7 @@
     renderSteps(S, m);
     renderResistances(S, m, G, COL);
     renderWhatIf(S, m, G, COL);
+    renderPlayground(S, G, COL);
   };
 
   ATC.Explain = E;

@@ -30,13 +30,13 @@ Para publicar como site: em **Settings → Pages** do repositório, selecione a 
 | Aba | Função |
 | --- | --- |
 | **Painel** | Mostradores e séries temporais da coleta, com reprodução instante a instante |
-| **Entenda o cálculo** | A mesma conta da análise, em português e desenhada: esquema do circuito com os valores reais, memória de cálculo passo a passo e as comparações que dizem se o resultado é bom |
+| **Entenda o cálculo** | A mesma conta da análise, em português e desenhada: esquema do circuito com os valores reais, memória de cálculo passo a passo, as comparações que dizem se o resultado é bom e uma superfície 3D onde dá para mexer nos parâmetros e ver o relevo mudar |
 | **Importar dados** | Lê o CSV do scanner OBD-II e o do logger de temperatura, detecta as colunas e sincroniza as duas fontes |
 | **Análise térmica** | Balanço de energia, efetividade–NTU, UA, resultados por regime e calibração do modelo |
 | **Previsão** | Treina e valida o modelo de previsão de temperatura; detecta anomalias |
 | **Alertas** | Alertas preditivos e medição da antecedência conseguida |
 | **Relatório** | Relatório técnico da coleta, exportável em PDF, CSV e JSON |
-| **Projeto** | Escopo, ementa, método, riscos e itens pendentes |
+| **Projeto** | Escopo, ementa, método, riscos e os itens pendentes da disciplina, que se marcam e ficam salvos no navegador |
 
 Qualquer ação da plataforma também é alcançável pelo teclado: **Ctrl+K** (ou **⌘K**) abre
 uma busca sobre tudo que ela sabe fazer — trocar de aba, carregar uma coleta, calibrar,
@@ -165,10 +165,11 @@ assets/js/motion.js        integrador de molas: inclinação, toque, cursor das 
 assets/js/audio.js         sons da interface sintetizados em WebAudio (desligado por padrão)
 assets/js/thermal.js       propriedades dos fluidos, correlações, ε–NTU, calibração
 assets/js/csvio.js         leitura de CSV, detecção de colunas, sincronização, auditoria
-assets/js/charts.js        gráficos em canvas: séries, dispersão, barras, mostradores, razões
+assets/js/charts.js        gráficos em canvas: séries, dispersão, barras, mostradores, razões, superfície 3D
 assets/js/model.js         regressão ridge, validação cruzada, anomalias, alertas
 assets/js/demo.js          gerador de coletas sintéticas
-assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, comparações
+assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, superfície 3D
+assets/js/tasks.js         itens pendentes do projeto, marcáveis e guardados no navegador
 assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro
 assets/js/cmdk.js          paleta de comandos (Ctrl+K)
 assets/js/app.js           interface, estado, relatório
@@ -199,11 +200,33 @@ compositor resolve. É o que sustenta os 60 fps.
 Quem tiver *reduzir movimento* ligado no sistema recebe a interface sem inclinação, sem
 partículas e sem a sequência de partida — os estados continuam todos alcançáveis.
 
+## A superfície 3D
+
+Calor rejeitado não depende de uma variável só: depende da velocidade do carro **e** da
+rotação do motor ao mesmo tempo. Duas variáveis não cabem numa curva — cabem numa
+superfície, e mostrar superfície como superfície poupa a conversa inteira de "imagine
+várias curvas sobrepostas".
+
+O renderizador é próprio, sem biblioteca: projeção, algoritmo do pintor e uma luz
+direcional. Cada quadrilátero é sombreado pela própria inclinação, que é o que faz o
+relevo aparecer — mais do que a cor. Arraste para girar; ao soltar, a superfície sai
+girando por inércia e para sozinha por atrito. Custa **1,05 ms por quadro**, com folga de
+sobra para os 60 fps.
+
+Os seis parâmetros que mais mandam no resultado ficam em controles ao lado. Mexer neles
+deforma a superfície na hora, mas **não encosta na análise**: é uma caixa de areia até
+alguém clicar em *Aplicar de verdade*. Mexer num controle para entender não pode
+reescrever a memória de cálculo de uma coleta real.
+
 Duas decisões saíram de medição, não de gosto:
 
 - **O painel de instrumentos desenha a face uma vez.** Trilha, escala, números e o nome de
   cada mostrador vão para um canvas fora da tela e são copiados por quadro. Só o arco de
   valor, o ponteiro e a leitura digital são redesenhados.
+- **Rótulo nenhum briga com a geometria.** Girar a superfície coloca qualquer rótulo em
+  cima do relevo mais cedo ou mais tarde. Em vez de disputar espaço, cada rótulo leva a
+  própria pastilha de fundo, a escala é escrita na borda que aparece mais embaixo na tela
+  e as pastilhas que colidiriam com o nome de um eixo são simplesmente omitidas.
 - **Vidro só onde o fundo fica parado.** `backdrop-filter` obriga o navegador a refazer o
   desfoque sempre que qualquer coisa atrás muda; com o cluster desenhando a 60 Hz, o
   desfoque nos painéis custava 34 dos 60 quadros por segundo (medido: 27 fps com, 61 fps

@@ -856,6 +856,79 @@ footer.foot{border-top:1px solid var(--hair);padding:22px 0 34px;color:var(--ink
 .meter.crit .m-fill{background:var(--crit)}
 .meter .m-sub{font-size:11.5px;color:var(--ink-4);margin-top:5px}
 
+/* ---------- itens pendentes do projeto ---------- */
+.tk-head{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.tk-bar{
+  flex:1 1 auto;height:6px;border-radius:4px;background:var(--surface-3);
+  border:1px solid var(--hair);overflow:hidden;
+}
+.tk-fill{
+  height:100%;border-radius:3px;background:var(--ok);width:100%;
+  transform:scaleX(var(--f,0));transform-origin:left center;
+  transition:transform .55s cubic-bezier(.22,.9,.28,1);
+}
+.tk-count{font-size:12.2px;color:var(--ink-3);white-space:nowrap}
+.tk-count b{font-family:var(--mono);color:var(--ink)}
+
+.tk-list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.tk{
+  display:flex;align-items:flex-start;gap:11px;padding:9px 10px;border-radius:9px;
+  transition:background .16s ease;
+}
+.tk:hover{background:var(--surface-3)}
+.tk-box{
+  appearance:none;flex:0 0 auto;width:19px;height:19px;margin-top:1px;cursor:pointer;
+  border:1.5px solid var(--hair-strong);border-radius:6px;background:var(--surface);
+  display:grid;place-items:center;padding:0;
+  transition:background .18s ease,border-color .18s ease;
+}
+.tk-box svg{
+  width:13px;height:13px;fill:none;stroke:var(--ink-inv);stroke-width:2.2;
+  stroke-linecap:round;stroke-linejoin:round;
+  /* o risco e desenhado: o traco sai do nada ate o comprimento total */
+  stroke-dasharray:16;stroke-dashoffset:16;
+  transition:stroke-dashoffset .26s cubic-bezier(.3,.9,.4,1);
+}
+.tk-box:hover{border-color:var(--ok)}
+.tk.on .tk-box{background:var(--ok);border-color:var(--ok)}
+.tk.on .tk-box svg{stroke-dashoffset:0}
+.tk-txt{font-size:13.2px;color:var(--ink-2);line-height:1.5}
+.tk-txt em{font-style:normal;color:var(--ink-4)}
+.tk.on .tk-txt{color:var(--ink-4);text-decoration:line-through;text-decoration-color:var(--hair-strong)}
+.tk-del{
+  appearance:none;margin-left:auto;flex:0 0 auto;border:0;background:transparent;cursor:pointer;
+  color:var(--ink-4);font-size:17px;line-height:1;padding:0 4px;border-radius:5px;opacity:0;
+  transition:opacity .16s ease,color .16s ease;
+}
+.tk:hover .tk-del{opacity:1}
+.tk-del:hover{color:var(--crit)}
+.tk-add{display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--hair-2)}
+.tk-add input{font-family:var(--sans);font-size:13px}
+@media (prefers-reduced-motion:reduce){
+  .tk-fill,.tk-box svg{transition:none}
+}
+
+/* ---------- painel de parametros da superficie ---------- */
+.pg-controls{display:grid;gap:13px}
+.pg-row .pg-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px}
+.pg-row .pg-lab{font-size:12.2px;color:var(--ink-2);font-weight:560}
+.pg-row .pg-val{font-family:var(--mono);font-size:12.5px;color:var(--ink);font-weight:600}
+.pg-row .pg-val em{font-style:normal;color:var(--ink-4);font-size:10.5px;margin-left:3px}
+.pg-row.moved .pg-val{color:var(--acc)}
+.pg-row input[type=range]{margin:0;display:block}
+.pg-row .pg-why{font-size:11.2px;color:var(--ink-4);margin-top:4px;line-height:1.45}
+
+.pg-out{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;
+  margin-top:12px;background:var(--hair);border:1px solid var(--hair);border-radius:10px;overflow:hidden;
+}
+.pg-cell{background:var(--surface);padding:10px 12px}
+.pg-cell .pc-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-4)}
+.pg-cell .pc-v{font-family:var(--mono);font-size:17px;color:var(--ink);margin-top:4px;font-weight:600}
+.pg-cell .pc-d{font-size:11px;margin-top:3px;height:15px;color:var(--ink-4)}
+.pg-cell .pc-d.up{color:var(--ok)}
+.pg-cell .pc-d.down{color:var(--crit)}
+
 .gloss{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:11px}
 .gloss .g-item{background:var(--surface-2);border:1px solid var(--hair);border-radius:11px;padding:13px 15px}
 .gloss .g-sym{font-family:var(--mono);font-size:16px;color:var(--acc);font-weight:660}

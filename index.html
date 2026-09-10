@@ -311,7 +311,30 @@
       </div>
     </div>
 
-    <!-- ---------- 5. glossario ---------- -->
+    <!-- ---------- 5. superficie interativa ---------- -->
+    <!-- sem "lift": um cartao que se arrasta por dentro nao pode
+         balancar junto, senao a superficie foge do ponteiro -->
+    <div class="card ticked">
+      <h2>Mexa nos parâmetros e veja a superfície mudar</h2>
+      <p class="hint">O calor que o radiador consegue tirar não depende de uma coisa só: depende da velocidade do carro <b>e</b> da rotação do motor ao mesmo tempo. Duas variáveis não cabem numa curva — cabem numa superfície. Arraste para girar; mexa nos controles e veja o relevo se deformar.</p>
+      <div class="grid g-1-2">
+        <div>
+          <div class="pg-controls" id="pgControls"></div>
+          <div class="btn-row" style="margin-top:16px">
+            <button class="btn primary" id="btnPgApply" disabled>Aplicar de verdade</button>
+            <button class="btn ghost" id="btnPgReset" disabled>Desfazer</button>
+          </div>
+          <p class="hint" style="margin:12px 0 0" id="pgNote">Enquanto você não clicar em <b>Aplicar de verdade</b>, nada disso encosta na análise: é só simulação em cima da coleta carregada.</p>
+        </div>
+        <div>
+          <div class="chart-box"><canvas id="chartPlay"></canvas></div>
+          <div class="pg-out" id="pgOut"></div>
+        </div>
+      </div>
+      <div class="reading" id="exReadPlay"></div>
+    </div>
+
+    <!-- ---------- 6. glossario ---------- -->
     <div class="card lift ticked">
       <h2>O que cada símbolo quer dizer</h2>
       <p class="hint">Sem fórmula, sem índice. Uma frase por símbolo.</p>
@@ -686,16 +709,12 @@
   </div>
 
   <div class="card lift ticked">
-    <h2>Itens pendentes de confirmação</h2>
-    <p class="hint">Campos do formulário da disciplina que dependem de informação que ainda não temos. O restante já está preenchido a partir do tema definido.</p>
-    <ul class="check">
-      <li class="todo">Nome da equipe registrado no formulário (a plataforma já adota <b>Apex Thermal Control</b>)</li>
-      <li class="todo">Número de integrantes e, para cada um: função, competência principal e disponibilidade semanal</li>
-      <li class="todo">Turma/período, professor(a) responsável e data da aula</li>
-      <li class="todo">Prazo da primeira entrega e data da entrega seguinte</li>
-      <li class="todo">Modelo do scanner OBD-II adquirido (define o que cabe no escopo mínimo)</li>
-      <li class="todo">Acesso a laboratório da UniCuritiba: termopar, multímetro, termômetro infravermelho, fonte</li>
-    </ul>
+    <div class="spread">
+      <h2>Itens pendentes de confirmação</h2>
+      <span class="badge" id="taskBadge">—</span>
+    </div>
+    <p class="hint">Campos do formulário da disciplina que dependem de informação que ainda não temos. Marque conforme for resolvendo — fica salvo neste navegador. O restante do formulário já está preenchido a partir do tema definido.</p>
+    <div id="taskBoard"></div>
     <div class="note warn">Dois riscos de disponibilidade da bancada: (1) o Cruze está anunciado para venda — se sair antes das campanhas de coleta, é preciso um veículo substituto, e o método funciona em qualquer carro com OBD-II; (2) os ponteiros de rotação e velocidade do painel pararam de funcionar, o que pode indicar problema no barramento CAN ou no cluster. Se os PIDs 010C e 010D vierem zerados, a rotação sai do próprio scanner e a velocidade passa a vir do GPS do celular.</div>
   </div>
 
@@ -915,6 +934,7 @@
 <script src="assets/js/model.js"></script>
 <script src="assets/js/demo.js"></script>
 <script src="assets/js/explain.js"></script>
+<script src="assets/js/tasks.js"></script>
 <script src="assets/js/speed.js"></script>
 <script src="assets/js/cmdk.js"></script>
 <script src="assets/js/app.js"></script>

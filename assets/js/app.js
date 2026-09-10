@@ -28,7 +28,8 @@
       resAir: '#2450e0', resWall: '#d9dce2', resCool: '#d1592a',
       zoneCold: '#e3e8fb', zoneOk: '#dff0e8', zoneWarn: '#f7ecd5', zoneCrit: '#f8dfdc',
       bandWarn: 'rgba(176,119,13,.08)',
-      crCurve: ['#2450e0', '#0f8f62', '#b0770d', '#d1592a', '#c72c1f']
+      crCurve: ['#2450e0', '#0f8f62', '#b0770d', '#d1592a', '#c72c1f'],
+      surfRamp: ['#dfe4ee', '#8fa6e8', '#2450e0', '#d1592a']
     },
     speed: {
       hot: '#ff7a3d', cold: '#12b6ff', amb: '#5a6376', pred: '#3ff0e0',
@@ -40,7 +41,8 @@
       resAir: '#12b6ff', resWall: '#5a6376', resCool: '#ff8a1f',
       zoneCold: '#123246', zoneOk: '#123f2e', zoneWarn: '#3e3216', zoneCrit: '#45191a',
       bandWarn: 'rgba(255,176,32,.10)',
-      crCurve: ['#12b6ff', '#2fe08a', '#ffb020', '#ff8a1f', '#ff3b30']
+      crCurve: ['#12b6ff', '#2fe08a', '#ffb020', '#ff8a1f', '#ff3b30'],
+      surfRamp: ['#16202e', '#0e6f9e', '#12b6ff', '#3ff0e0']
     }
   };
   var COL = {};

@@ -156,7 +156,10 @@
   /* velocidade de face e vazao massica de ar */
   T.airFlow = function (speedKmh, fanOn, Tamb, p) {
     var vRam = p.kRam * (speedKmh / 3.6);
-    var vFan = fanOn ? p.vFan : 0;
+    /* fanOn aceita 0/1, true/false ou uma fracao. A fracao serve as
+       varreduras de "e se": o ventilador nao liga e desliga no meio
+       de uma curva sem deixar um degrau que a fisica nao tem.      */
+    var vFan = p.vFan * U.clamp(fanOn === true ? 1 : (+fanOn || 0), 0, 1);
     /* composicao sub-aditiva: o ventilador nao soma linearmente ao ram-air */
     var vFace = Math.sqrt(vRam * vRam + vFan * vFan);
     var pr = T.air(Tamb, p.pAtm);
