@@ -372,3 +372,223 @@
 .tune-alert.bad b{color:var(--crit);animation:knockPulse 1.1s ease-in-out infinite}
 @keyframes knockPulse{0%,100%{opacity:1}50%{opacity:.45}}
 @media (prefers-reduced-motion:reduce){.tune-alert.bad b{animation:none}}
+
+
+/* ============================================================
+   9. COCKPIT — o ambiente da bancada
+   ------------------------------------------------------------
+   Nada aqui deve parecer web. Botao e metal, slider e
+   potenciometro, chave e chave. As superficies pegam luz de cima
+   e a sombra vem de baixo, que e o que separa um controle fisico
+   de um retangulo colorido.
+   ============================================================ */
+.ck-grid{
+  display:grid;gap:12px;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  align-items:start;
+}
+.ck-tach{grid-column:span 5}
+.ck-boost{grid-column:span 3}
+.ck-afr{grid-column:span 4}
+.ck-fuel{grid-column:span 5}
+.ck-inj{grid-column:span 3}
+.ck-sens{grid-column:span 4}
+@media (max-width:1180px){
+  .ck-tach{grid-column:span 7}.ck-boost{grid-column:span 5}
+  .ck-afr{grid-column:span 6}.ck-fuel{grid-column:span 6}
+  .ck-inj{grid-column:span 5}.ck-sens{grid-column:span 7}
+}
+@media (max-width:760px){.ck-grid>*{grid-column:span 12!important}}
+
+.ck{
+  border:1px solid var(--hair-strong);border-radius:var(--r);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%,transparent),color-mix(in srgb,var(--canvas-2) 96%,transparent));
+  padding:13px 14px;position:relative;overflow:hidden;
+  box-shadow:var(--sh-2), 0 0 0 1px color-mix(in srgb,var(--silver-3) 14%,transparent) inset;
+}
+.ck::before{
+  content:"";position:absolute;left:13px;right:13px;top:0;height:1px;
+  background:var(--chrome-line);opacity:.5;pointer-events:none;
+}
+.ck-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ck-t{font-family:var(--mono);font-size:10px;letter-spacing:.22em;color:var(--acc)}
+.ck-s{font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
+.ck-s.warn{color:var(--crit)}
+.ck-canvas{position:relative;contain:paint}
+.ck-canvas canvas{width:100%;display:block;will-change:transform}
+.ck-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap}
+
+/* ---------- pedal ---------- */
+.throttle{
+  appearance:none;width:100%;margin-top:11px;cursor:pointer;position:relative;overflow:hidden;
+  border:1px solid var(--hair-strong);border-radius:9px;padding:9px 0;
+  background:linear-gradient(180deg,#232b3a,#141922);
+  color:var(--ink-3);font-family:var(--mono);font-size:10px;letter-spacing:.2em;
+  box-shadow:0 3px 0 -1px #05070a, 0 6px 14px rgba(0,0,0,.5);
+  transform:translate3d(0,calc(var(--press,0) * 3px),0);will-change:transform;
+  transition:color .15s,border-color .15s;
+}
+.throttle .thr-fill{
+  position:absolute;inset:0;transform-origin:left center;transform:scaleX(0);
+  background:linear-gradient(90deg,rgba(255,138,31,.32),rgba(255,59,48,.42));
+}
+.throttle .thr-lab{position:relative}
+.throttle.on{color:#fff;border-color:var(--boost)}
+
+/* ---------- botoes metalicos e chaves ---------- */
+.preset-row{display:flex;gap:5px;margin-top:11px;flex-wrap:wrap}
+.preset,.knob{
+  appearance:none;cursor:pointer;border:1px solid #454b59;border-radius:7px;
+  background:linear-gradient(180deg,#2b3342,#161b25);
+  color:var(--ink-2);font-family:var(--mono);font-size:11px;font-weight:600;
+  padding:6px 10px;min-width:40px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09) inset, 0 2px 0 -1px #05070a;
+  transform:translate3d(0,calc(var(--press,0) * 2px),0);will-change:transform;
+  transition:color .15s,border-color .15s,background .15s;
+}
+.preset:hover,.knob:hover{color:var(--ink);border-color:var(--acc)}
+.preset.on,.knob.on{
+  color:var(--acc-ink);border-color:var(--acc);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--acc) 88%,white),var(--acc));
+  box-shadow:0 0 14px -2px var(--acc);
+}
+.knob{min-width:30px;padding:6px 8px}
+.knob-row{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.knob-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;color:var(--ink-4);margin-right:3px}
+
+.sw{
+  appearance:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;
+  border:1px solid #454b59;border-radius:8px;padding:7px 12px;
+  background:linear-gradient(180deg,#242c3a,#12161e);
+  color:var(--ink-3);font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+  box-shadow:0 2px 0 -1px #05070a;
+  transform:translate3d(0,calc(var(--press,0) * 2px),0);will-change:transform;
+}
+.sw .sw-led{width:7px;height:7px;border-radius:50%;background:#39414f;transition:background .2s,box-shadow .2s}
+.sw.on{color:var(--boost);border-color:var(--boost)}
+.sw.on .sw-led{background:var(--boost);box-shadow:0 0 10px var(--boost)}
+
+/* ---------- potenciometro ---------- */
+.pot{display:flex;align-items:center;gap:10px;margin-top:11px}
+.pot-l{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4);white-space:nowrap}
+.pot input[type=range]{flex:1 1 auto;min-width:60px;accent-color:var(--boost)}
+.pot-v{font-family:var(--mono);font-size:11px;color:var(--ink);min-width:42px;text-align:right}
+
+/* ---------- mistura ---------- */
+.afr-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4);margin-bottom:4px}
+.ck-afr input[type=range]{width:100%;accent-color:var(--cyan)}
+.afr-read{font-family:var(--mono);text-align:center;margin:6px 0 9px}
+.afr-read span{font-size:24px;color:var(--cyan);font-weight:600}
+.afr-read small{font-size:10px;color:var(--ink-4);margin-left:4px}
+
+/* ---------- bicos ---------- */
+.inj-bank{display:grid;gap:9px}
+.inj{display:grid;grid-template-columns:44px 1fr 40px;align-items:center;gap:9px}
+.inj-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;color:var(--ink-4)}
+.inj-bar{height:11px;border-radius:6px;background:var(--surface-3);border:1px solid var(--hair);overflow:hidden}
+.inj-bar i{
+  display:block;height:100%;border-radius:5px;transform-origin:left center;transform:scaleX(0);
+  background:linear-gradient(90deg,var(--acc),var(--cyan));
+}
+.inj-v{font-family:var(--mono);font-size:11px;color:var(--ink-2);text-align:right}
+
+/* ---------- barramento ---------- */
+.sens-grid{
+  display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);
+  border-radius:9px;overflow:auto;max-height:340px;
+}
+.sens{
+  display:grid;grid-template-columns:10px 74px 1fr 34px;align-items:center;gap:7px;
+  background:var(--surface);padding:6px 9px;position:relative;
+}
+.sn-led{width:5px;height:5px;border-radius:50%;background:var(--ok);box-shadow:0 0 6px var(--ok);opacity:.65}
+.sens.warn .sn-led{background:var(--crit);box-shadow:0 0 8px var(--crit);opacity:1;animation:snPulse 1s ease-in-out infinite}
+@keyframes snPulse{0%,100%{opacity:1}50%{opacity:.3}}
+.sn-l{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--ink-4)}
+.sn-v{font-family:var(--mono);font-size:12px;color:var(--ink);text-align:right}
+.sens.warn .sn-v{color:var(--crit)}
+.sn-u{font-family:var(--mono);font-size:9px;color:var(--ink-4)}
+.sn-bar{grid-column:1 / -1;height:2px;background:var(--surface-3);border-radius:2px;overflow:hidden}
+.sn-bar i{display:block;height:100%;background:var(--acc);transform-origin:left center;transform:scaleX(0)}
+.sens.warn .sn-bar i{background:var(--crit)}
+@media (prefers-reduced-motion:reduce){.sens.warn .sn-led{animation:none}}
+
+/* ============================================================
+   10. TERMINAL
+   ============================================================ */
+.term{
+  border:1px solid var(--hair-strong);border-radius:var(--r);
+  background:color-mix(in srgb,#05070a 92%,transparent);
+  padding:14px 16px;font-family:var(--mono);cursor:text;
+  box-shadow:var(--sh-3), 0 0 0 1px rgba(18,182,255,.08) inset;
+  min-height:min(62vh,520px);display:flex;flex-direction:column;
+}
+.term-out{
+  margin:0;flex:1 1 auto;overflow:auto;white-space:pre-wrap;word-break:break-word;
+  font-size:12.5px;line-height:1.75;color:var(--ink-2);
+}
+.term-out .ok{color:var(--ok)}
+.term-out .w{color:var(--warn)}
+.term-out .e{color:var(--crit)}
+.term-out .ps{color:var(--acc)}
+.term-in{display:flex;align-items:center;gap:8px;border-top:1px solid var(--hair);padding-top:11px;margin-top:11px}
+.term-ps{color:var(--acc);font-size:12.5px;white-space:nowrap}
+.term-in input{
+  flex:1 1 auto;background:transparent;border:0;outline:none;box-shadow:none;
+  font-family:var(--mono);font-size:12.5px;color:var(--ink);padding:0;
+}
+.term-in input:focus{box-shadow:none;border:0}
+
+
+/* ============================================================
+   11. TEMAS DA BANCADA
+   ------------------------------------------------------------
+   Cada tema mexe so nos tokens: acento, ciano, boost e as
+   superficies. Como todos os modulos leem cor por token, trocar
+   de tema nao pede uma linha de codigo em nenhum deles — nem nos
+   canvas, que consultam as variaveis na hora de desenhar.
+   ============================================================ */
+[data-mode="speed"][data-skin="titanium"]{
+  --acc:#9fb3c8;--acc-2:#6d8299;--acc-soft:rgba(159,179,200,.12);--acc-ring:rgba(159,179,200,.3);
+  --acc-ink:#0d1219;--cyan:#d6e2ee;--boost:#c9a227;
+  --canvas:#0b0d10;--canvas-2:#101318;--surface:#14181e;--surface-2:#181d24;--surface-3:#1e242c;
+}
+[data-mode="speed"][data-skin="nismo"]{
+  --acc:#ff3b30;--acc-2:#b3120b;--acc-soft:rgba(255,59,48,.12);--acc-ring:rgba(255,59,48,.3);
+  --acc-ink:#fff;--cyan:#ff7a6e;--boost:#ffd166;
+  --canvas:#08080a;--canvas-2:#0d0e11;--surface:#121317;--surface-2:#17181d;--surface-3:#1e2027;
+}
+[data-mode="speed"][data-skin="midnight"]{
+  --acc:#5b6cff;--acc-2:#2f3bb8;--acc-soft:rgba(91,108,255,.13);--acc-ring:rgba(91,108,255,.3);
+  --acc-ink:#fff;--cyan:#8ea2ff;--boost:#ff9f45;
+  --canvas:#05060d;--canvas-2:#090b14;--surface:#0e1120;--surface-2:#131728;--surface-3:#1a1f34;
+}
+[data-mode="speed"][data-skin="neotokyo"]{
+  --acc:#ff2fb0;--acc-2:#b8117a;--acc-soft:rgba(255,47,176,.13);--acc-ring:rgba(255,47,176,.3);
+  --acc-ink:#fff;--cyan:#2ff5ff;--boost:#ffe14d;
+  --canvas:#07050d;--canvas-2:#0c0814;--surface:#120d1e;--surface-2:#181025;--surface-3:#20172f;
+}
+[data-mode="speed"][data-skin="factory"]{
+  --acc:#8a95a5;--acc-2:#5d6675;--acc-soft:rgba(138,149,165,.12);--acc-ring:rgba(138,149,165,.28);
+  --acc-ink:#0d1013;--cyan:#b8c2cf;--boost:#d8a24a;
+  --canvas:#0e0f11;--canvas-2:#131417;--surface:#17181b;--surface-2:#1c1e22;--surface-3:#232529;
+}
+[data-mode="speed"][data-skin="race"]{
+  --acc:#ffd400;--acc-2:#b89600;--acc-soft:rgba(255,212,0,.13);--acc-ring:rgba(255,212,0,.3);
+  --acc-ink:#141200;--cyan:#fff06a;--boost:#ff5a2a;
+  --canvas:#0a0a08;--canvas-2:#0f0f0c;--surface:#141410;--surface-2:#1a1a15;--surface-3:#22221b;
+}
+
+/* seletor de tema no cabecalho */
+.skin-pick{
+  appearance:none;height:34px;padding:0 26px 0 11px;border-radius:10px;cursor:pointer;
+  border:1px solid var(--hair);background:var(--surface);color:var(--ink-2);
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+  box-shadow:var(--sh-1);
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 14px) 15px,calc(100% - 9px) 15px;
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat;
+}
+.skin-pick:hover{border-color:var(--acc);color:var(--ink)}
+html:not([data-mode="speed"]) .skin-pick{display:none}
+@media (max-width:900px){.skin-pick{display:none!important}}

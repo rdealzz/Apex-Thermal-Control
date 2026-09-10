@@ -64,6 +64,15 @@
             <path d="M14 7.5l3.5 5M17.5 7.5l-3.5 5" class="snd-off"/>
           </svg>
         </button>
+        <select class="skin-pick" id="skinPick" aria-label="Tema da bancada">
+          <option value="carbon">Carbono</option>
+          <option value="titanium">Titanium</option>
+          <option value="nismo">Nismo</option>
+          <option value="midnight">Midnight</option>
+          <option value="neotokyo">Neo Tokyo</option>
+          <option value="factory">Factory</option>
+          <option value="race">Race</option>
+        </select>
         <button class="speed-btn" id="btnSpeed" type="button" aria-pressed="false">
           <span class="led" aria-hidden="true"></span><span class="sb-lab">Speed mode</span>
         </button>
@@ -80,9 +89,11 @@
       <button role="tab" data-tab="alertas"   aria-selected="false"><span class="idx">06</span>Alertas</button>
       <button role="tab" data-tab="relatorio" aria-selected="false"><span class="idx">07</span>Relatório</button>
       <button role="tab" data-tab="projeto"   aria-selected="false"><span class="idx">08</span>Projeto</button>
+      <button role="tab" data-tab="cockpit" class="speed-only" aria-selected="false"><span class="idx">S0</span>Cockpit</button>
       <button role="tab" data-tab="cluster" class="speed-only" aria-selected="false"><span class="idx">S1</span>Cluster</button>
       <button role="tab" data-tab="ecu"     class="speed-only" aria-selected="false"><span class="idx">S2</span>ECU</button>
       <button role="tab" data-tab="dyno"    class="speed-only" aria-selected="false"><span class="idx">S3</span>Dyno</button>
+      <button role="tab" data-tab="term"    class="speed-only" aria-selected="false"><span class="idx">S6</span>Terminal</button>
     </nav>
   </div>
 </header>
@@ -877,6 +888,88 @@
   </div>
 </section>
 
+<!-- ================= SPEED MODE — COCKPIT ================= -->
+<section class="tab speed-tab" id="tab-cockpit" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S0</span>
+    <h1>Cockpit</h1>
+    <span class="badge warn">bancada fictícia</span>
+    <p class="sh-sub">Notebook ligado na ECU. Tudo aqui é simulado e nada toca na análise térmica — mas os módulos concordam entre si: mexa num e os outros respondem pela cadeia certa.</p>
+  </div>
+
+  <div class="ck-grid">
+
+    <!-- conta-giros -->
+    <div class="ck ck-tach">
+      <div class="ck-h"><span class="ck-t">ENGINE SPEED</span><span class="ck-s" id="ckGearLab">GEAR 3</span></div>
+      <div class="shift-strip" id="ckShift" aria-hidden="true"></div>
+      <div class="ck-canvas"><canvas id="ckTach"></canvas></div>
+      <button class="throttle" id="ckThrottle" aria-label="Acelerador — segure para acelerar">
+        <span class="thr-fill" id="ckThrFill"></span>
+        <span class="thr-lab">SEGURE PARA ACELERAR</span>
+      </button>
+      <div class="ck-row">
+        <div class="knob-row" id="ckGears"></div>
+        <button class="sw" id="ckLaunch" aria-pressed="false"><span class="sw-led"></span>LAUNCH</button>
+      </div>
+    </div>
+
+    <!-- pressao de turbo -->
+    <div class="ck ck-boost">
+      <div class="ck-h"><span class="ck-t">BOOST</span><span class="ck-s" id="ckBoostS">wastegate 45 %</span></div>
+      <div class="ck-canvas"><canvas id="ckBoost"></canvas></div>
+      <div class="preset-row" id="ckBoostPresets"></div>
+      <div class="pot"><label class="pot-l">WASTEGATE DUTY</label>
+        <input type="range" id="ckWg" min="0" max="100" step="1" value="45"><span class="pot-v" id="ckWgV">45 %</span></div>
+    </div>
+
+    <!-- mistura -->
+    <div class="ck ck-afr">
+      <div class="ck-h"><span class="ck-t">AIR / FUEL</span><span class="ck-s" id="ckLambda">λ 0,857</span></div>
+      <div class="afr-scale"><span>RICH</span><span>STOICH</span><span>LEAN</span></div>
+      <input type="range" id="ckAfr" min="10.5" max="16.5" step="0.1" value="12.6" aria-label="AFR alvo">
+      <div class="afr-read"><span id="ckAfrV">12,6</span><small>:1 alvo</small></div>
+      <div class="ck-canvas sm"><canvas id="ckAfrTrace"></canvas></div>
+    </div>
+
+    <!-- pressao de combustivel -->
+    <div class="ck ck-fuel">
+      <div class="ck-h"><span class="ck-t">FUEL PRESSURE</span><span class="ck-s" id="ckFuelS">alvo 3,00 bar</span></div>
+      <div class="ck-canvas"><canvas id="ckFuel"></canvas></div>
+      <div class="legend"><span><i style="background:#12b6ff"></i>real</span><span><i class="dash" style="color:#7b8699"></i>alvo</span></div>
+    </div>
+
+    <!-- bicos -->
+    <div class="ck ck-inj">
+      <div class="ck-h"><span class="ck-t">INJECTORS</span><span class="ck-s" id="ckInjS">duty 0 %</span></div>
+      <div class="inj-bank" id="ckInj"></div>
+    </div>
+
+    <!-- barramento -->
+    <div class="ck ck-sens">
+      <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">14 sensores</span></div>
+      <div class="sens-grid" id="ckSens"></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= SPEED MODE — TERMINAL ================= -->
+<section class="tab speed-tab" id="tab-term" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S6</span>
+    <h1>Terminal</h1>
+    <p class="sh-sub">Console da central. Digite <code>help</code> para a lista de comandos.</p>
+  </div>
+  <div class="term" id="term">
+    <pre class="term-out" id="termOut"></pre>
+    <div class="term-in">
+      <span class="term-ps">apex@ecu:~$</span>
+      <input type="text" id="termIn" autocomplete="off" spellcheck="false" aria-label="Comando">
+    </div>
+  </div>
+</section>
+
 <!-- ================= SPEED MODE — CLUSTER ================= -->
 <section class="tab speed-tab" id="tab-cluster" role="tabpanel" hidden>
   <div class="sec-head">
@@ -991,7 +1084,9 @@
 <script src="assets/js/demo.js"></script>
 <script src="assets/js/explain.js"></script>
 <script src="assets/js/tasks.js"></script>
+<script src="assets/js/sim.js"></script>
 <script src="assets/js/tune.js"></script>
+<script src="assets/js/cockpit.js"></script>
 <script src="assets/js/speed.js"></script>
 <script src="assets/js/cmdk.js"></script>
 <script src="assets/js/app.js"></script>

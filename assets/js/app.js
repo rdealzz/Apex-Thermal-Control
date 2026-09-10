@@ -1728,7 +1728,8 @@
       return { group: 'Ir para', icon: t[2], label: t[1], keys: t[0], run: function () { setTab(t[0]); } };
     });
 
-    var SPEED_TABS = [['cluster', 'Cluster', '◉'], ['ecu', 'ECU', '▣'], ['dyno', 'Dyno', '◭']];
+    var SPEED_TABS = [['cockpit', 'Cockpit', '◈'], ['cluster', 'Cluster', '◉'],
+                      ['ecu', 'ECU', '▣'], ['dyno', 'Dyno', '◭'], ['term', 'Terminal', '>_']];
     SPEED_TABS.forEach(function (t) {
       list.push({
         group: 'Speed mode', icon: t[2], label: 'Ir para ' + t[1], keys: t[0],

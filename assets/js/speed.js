@@ -78,16 +78,21 @@
      1. PARTIDA
      ============================================================ */
   var BOOT = [
-    ['Initializing ECU', 'ok'],
-    ['Loading thermal modules', 'ok'],
-    ['Reading coolant maps', 'ok'],
-    ['Checking sensors', 'ok'],
-    ['Loading ε–NTU solver', 'ok'],
-    ['Pump flow model', 'ok'],
-    ['Fan control strategy', 'ok'],
-    ['Telemetry buffer', 'ok'],
-    ['Performance profile loaded', 'k'],
-    ['Engine ready', 'k']
+    ['Connecting ECU', 'ok'],
+    ['Searching CAN network', 'ok'],
+    ['ECU found — APEX-PERF 4.2.1', 'ok'],
+    ['Reading firmware', 'ok'],
+    ['Fuel maps loaded', 'ok'],
+    ['Ignition maps loaded', 'ok'],
+    ['Sensors connected', 'ok'],
+    ['Injectors online', 'ok'],
+    ['Turbo control active', 'ok'],
+    ['Lambda connected', 'ok'],
+    ['Knock sensor online', 'ok'],
+    ['Data logger running', 'ok'],
+    ['Thermal core linked', 'ok'],
+    ['Vehicle ready', 'k'],
+    ['APEX Performance connected', 'k']
   ];
 
   function boot(done) {
@@ -728,6 +733,7 @@
   SP.mount = function () {
     geo.dirty = true; geoAux.dirty = true;
     buildLeds(); buildCells(); buildEcuRail();
+    if (ATC.Cockpit) ATC.Cockpit.mount();
     if (!stopFrame && M) stopFrame = M.onFrame(function (dt) { frame(dt); });
     /* sem coleta real, a telemetria comeca rodando: um painel parado
        no zero nao mostra nada do que ele sabe fazer                 */
@@ -744,6 +750,7 @@
   };
   SP.unmount = function () {
     if (stopFrame) { stopFrame(); stopFrame = null; }
+    if (ATC.Cockpit) ATC.Cockpit.unmount();
     play.on = false;
   };
 
@@ -1312,6 +1319,21 @@
     var bs = $('#btnSpeed');
     if (bs) bs.addEventListener('click', function () { SP.toggle(); });
 
+    /* tema da bancada: so mexe em tokens, entao todo modulo segue
+       junto — inclusive os canvas, que leem cor na hora de desenhar */
+    var sk = $('#skinPick');
+    if (sk) {
+      var saved = 'carbon';
+      try { saved = localStorage.getItem('apex.skin') || 'carbon'; } catch (e) {}
+      applySkin(saved);
+      sk.value = saved;
+      sk.addEventListener('change', function () {
+        applySkin(sk.value);
+        try { localStorage.setItem('apex.skin', sk.value); } catch (e) {}
+        if (A) A.play('relay');
+      });
+    }
+
     var bp = $('#btnSpdPlay');
     if (bp) bp.addEventListener('click', function () {
       play.on = !play.on;
@@ -1346,6 +1368,17 @@
       SP.mount();
     }
   };
+
+  function applySkin(name) {
+    var root = document.documentElement;
+    if (name && name !== 'carbon') root.dataset.skin = name;
+    else delete root.dataset.skin;
+    /* os desenhos guardam assinatura do ultimo quadro: invalidar
+       obriga todos a se redesenharem com a paleta nova            */
+    geo.dirty = true; geoAux.dirty = true;
+    if (ATC.Cockpit) ATC.Cockpit.invalidate();
+    if (ATC.Charts) ATC.Charts.syncTheme();
+  }
 
   SP.isOn = function () { return document.documentElement.dataset.mode === 'speed'; };
   SP.refresh = function () {

@@ -55,9 +55,34 @@ abre três telas exclusivas:
 
 | Tela | O que mostra |
 | --- | --- |
+| **Cockpit** | A bancada inteira: conta-giros com pedal, manômetro de turbo com presets, mistura, pressão de combustível, bicos e o barramento CAN — todos vivos e ligados entre si |
+| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`) |
 | **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, mais quatro manômetros — pressão de óleo, de combustível, de turbo e AFR — com a telemetria da coleta rodando |
 | **ECU** | Oito telas de central eletrônica: Engine, Turbo, Injectors, **Tune**, Logger, Maps, Diagnostics, Telemetry |
 | **Dyno** | Passada de dinamômetro com os mapas da aba Tune, e o veredito de quanto tempo o radiador real seguraria aquilo |
+
+### O cockpit
+
+A tela principal do speed mode é um ambiente, não um painel. Os módulos não têm estado
+próprio: todos leem o mesmo simulador, que avança uma vez por quadro. É por isso que
+**mexer numa coisa move as outras pela cadeia certa**, sem nada sincronizando — elas são a
+mesma coisa vista de ângulos diferentes.
+
+Segurando o pedal a 7.000 rpm, subir a pressão alvo faz isto:
+
+| Pressão alvo | Boost | IAT | ECT | Duty do bico | Detonação |
+| --- | --- | --- | --- | --- | --- |
+| 0,8 bar | 0,54 bar | 52 °C | 100 °C | 62 % | nenhuma |
+| 1,6 bar | 1,08 bar | 72 °C | 122 °C | 85 % | 10 eventos |
+| 2,0 bar | 1,35 bar | 83 °C | 128 °C | 95 % | 24 eventos |
+
+Comprimir aquece o ar, o ar quente sobe a água, o coletor cheio pede combustível, o bico
+caminha para a saturação e a detonação fica mais provável. Nenhum desses números é
+sorteado.
+
+Sete temas — Carbono, Titanium, Nismo, Midnight, Neo Tokyo, Factory e Race — trocam só os
+tokens de cor, então todo módulo segue junto, inclusive os canvas, que consultam a paleta
+na hora de desenhar.
 
 ### A bancada de remapeamento
 
@@ -214,6 +239,8 @@ assets/js/model.js         regressão ridge, validação cruzada, anomalias, ale
 assets/js/demo.js          gerador de coletas sintéticas
 assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, superfície 3D
 assets/js/tasks.js         itens pendentes do projeto, marcáveis e guardados no navegador
+assets/js/sim.js           simulação de bancada: um estado que avança e do qual tudo deriva
+assets/js/cockpit.js       módulos do cockpit e o terminal da central
 assets/js/tune.js          mapas da bancada de remapeamento e o motor de mentira por trás
 assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro
 assets/js/cmdk.js          paleta de comandos (Ctrl+K)
