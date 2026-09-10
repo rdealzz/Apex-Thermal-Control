@@ -23,7 +23,56 @@
   var dyno = { running: false };
 
   function $(s) { return document.querySelector(s); }
-  function S() { return app ? app.state() : null; }
+
+  /* ============================================================
+     De onde o speed mode tira numero
+     ------------------------------------------------------------
+     Antes ele lia direto o estado do aplicativo, e sem coleta
+     carregada ficava tudo vazio — painel morto, ECU dizendo "no
+     data", dinamometro sem rodar. Isso esta errado para o que esta
+     parte e: um brinquedo, que tem de estar vivo no primeiro clique.
+
+     Entao ele passa a ter telemetria propria. Quando ha coleta de
+     verdade carregada, usa a coleta. Quando nao ha, gera a coleta
+     sintetica pelo mesmo gerador e pelo mesmo pipeline termico do
+     projeto — nada de numero inventado a mao, que sairia incoerente
+     entre uma tela e outra. Fica claramente rotulado como
+     demonstracao, e o painel comeca rodando sozinho.
+     ============================================================ */
+  var demoCache = null;
+
+  function demoData() {
+    if (demoCache) return demoCache;
+    var D = ATC.Demo, T = ATC.Thermal;
+    if (!D || !T) return null;
+    var p = (app && app.state() && app.state().params) || T.defaults();
+    var ds = D.generate(D.datasets[0].id);
+    var t0 = ds.rows[0].t;
+    var rows = ds.rows.map(function (r) {
+      return {
+        t: r.t - t0, ts: r.ts, ect: r.ect, rpm: r.rpm, speed: r.speed, load: r.load,
+        iat: r.iat, tAmb: r.tAmb, tIn: r.tIn, tOut: r.tOut, fan: r.fan
+      };
+    });
+    var proc = T.process(rows, p);
+    demoCache = {
+      proc: proc, sum: T.summary(proc), params: p,
+      meta: ds.meta, fit: null, alerts: null, anom: null, isDemo: true
+    };
+    return demoCache;
+  }
+
+  /* a fonte de dados do speed mode: a coleta real quando existe,
+     a de demonstracao quando nao                                  */
+  function S() {
+    var st = app ? app.state() : null;
+    if (st && st.proc && st.proc.rows && st.proc.rows.length) return st;
+    return demoData();
+  }
+  function usingDemo() {
+    var st = app ? app.state() : null;
+    return !(st && st.proc && st.proc.rows && st.proc.rows.length);
+  }
 
   /* ============================================================
      1. PARTIDA
@@ -680,6 +729,17 @@
     geo.dirty = true; geoAux.dirty = true;
     buildLeds(); buildCells(); buildEcuRail();
     if (!stopFrame && M) stopFrame = M.onFrame(function (dt) { frame(dt); });
+    /* sem coleta real, a telemetria comeca rodando: um painel parado
+       no zero nao mostra nada do que ele sabe fazer                 */
+    if (usingDemo() && !play.on) {
+      play.on = true;
+      /* entra no trecho em que o carro esta andando, nao na partida a
+         frio: um painel que abre em marcha lenta parece quebrado     */
+      var st0 = S();
+      if (st0 && st0.proc) play.i = Math.round(st0.proc.rows.length * 0.42);
+      var bp = $('#btnSpdPlay');
+      if (bp) bp.textContent = '‖ Pausar';
+    }
     SP.renderStatic();
   };
   SP.unmount = function () {
@@ -1188,7 +1248,7 @@
           U.br(peakT, 0) + ' N·m</b> a ' + U.br(peakTRpm, 0) + ' rpm, com os mapas que estão na aba <b>Tune</b>. ' +
           veredito +
           ' <span style="color:var(--ink-4)">A potência é ficção. O UA de ' + U.br(uaReal, 0) +
-          ' W/K vem das correlações com o fator de calibração da coleta carregada, avaliadas a ' +
+          ' W/K vem das correlações' + (usingDemo() ? ' sobre a coleta de demonstração' : ' com o fator de calibração da coleta carregada') + ', avaliadas a ' +
           U.br(vRef, 0) + ' km/h e ' + U.br(tAmb, 0) + ' °C de ar' +
           (pp.uaCalibrated ? '.' : ' — e a calibração ainda está pendente, então trate como ordem de grandeza.') +
           '</span>';
@@ -1203,6 +1263,13 @@
      8. Conteudo estatico das telas do speed mode
      ============================================================ */
   SP.renderStatic = function () {
+    var tag = $('#spdSource');
+    if (tag) {
+      var demo = usingDemo();
+      tag.hidden = false;
+      tag.textContent = demo ? 'telemetria de demonstração' : 'coleta carregada';
+      tag.className = 'badge ' + (demo ? 'warn' : 'ok');
+    }
     renderEcu();
     var st = S();
     var G = ATC.Charts, COL = app ? app.colors() : null;
@@ -1283,6 +1350,7 @@
   SP.isOn = function () { return document.documentElement.dataset.mode === 'speed'; };
   SP.refresh = function () {
     if (!SP.isOn()) return;
+    demoCache = null;          /* parametros mudaram: refaz a demonstracao */
     geo.dirty = true; geoAux.dirty = true;
     nitro.charge = 0; nitro.ready = false; play.i = 0;
     SP.renderStatic();
