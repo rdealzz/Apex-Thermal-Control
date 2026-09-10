@@ -30,12 +30,43 @@ Para publicar como site: em **Settings → Pages** do repositório, selecione a 
 | Aba | Função |
 | --- | --- |
 | **Painel** | Mostradores e séries temporais da coleta, com reprodução instante a instante |
+| **Entenda o cálculo** | A mesma conta da análise, em português e desenhada: esquema do circuito com os valores reais, memória de cálculo passo a passo e as comparações que dizem se o resultado é bom |
 | **Importar dados** | Lê o CSV do scanner OBD-II e o do logger de temperatura, detecta as colunas e sincroniza as duas fontes |
 | **Análise térmica** | Balanço de energia, efetividade–NTU, UA, resultados por regime e calibração do modelo |
-| **Previsão (IA)** | Treina e valida o modelo de previsão de temperatura; detecta anomalias |
+| **Previsão** | Treina e valida o modelo de previsão de temperatura; detecta anomalias |
 | **Alertas** | Alertas preditivos e medição da antecedência conseguida |
 | **Relatório** | Relatório técnico da coleta, exportável em PDF, CSV e JSON |
 | **Projeto** | Escopo, ementa, método, riscos e itens pendentes |
+
+Qualquer ação da plataforma também é alcançável pelo teclado: **Ctrl+K** (ou **⌘K**) abre
+uma busca sobre tudo que ela sabe fazer — trocar de aba, carregar uma coleta, calibrar,
+treinar o modelo, exportar.
+
+## Dois modos
+
+A plataforma tem duas peles, e as duas rodam exatamente o mesmo cálculo.
+
+**Work mode** é o padrão e é onde o trabalho acontece: papel claro, hierarquia
+tipográfica, quase nenhum efeito. É o que vai impresso no relatório.
+
+**Speed mode** é um easter egg oficial — homenagem ao painel automotivo, ativado pelo
+botão **SPEED MODE** no cabeçalho. Ele troca a interface inteira por um HUD de carbono e
+abre três telas exclusivas:
+
+| Tela | O que mostra |
+| --- | --- |
+| **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, com a telemetria da coleta rodando |
+| **ECU** | Sete telas de central eletrônica — Engine, Turbo, Injectors, Logger, Maps, Diagnostics, Telemetry |
+| **Dyno** | Passada de dinamômetro: varre a rotação e traça as curvas de calor rejeitado e UA |
+
+Nenhum indicador do speed mode é inventado. O conta-giros mostra a rotação que veio do
+PID `010C`, o "boost" é o calor rejeitado pelo radiador, a "pressão de óleo" é o índice de
+saúde do núcleo, o "AFR" é a razão de capacidades C_r e o nitro enche conforme a margem
+que ainda existe até o limite crítico. Cada tela diz, embaixo do número, qual grandeza
+térmica ela está mostrando. O que é fictício é a apresentação, não o dado.
+
+O modo escolhido fica lembrado no navegador. A sequência de partida — a tela de boot da
+ECU — só toca quando o modo é ativado, não a cada visita.
 
 ## Aquisição de dados
 
@@ -124,18 +155,61 @@ com o mesmo ruído e a mesma resolução dos sensores previstos (OBD-II 1 °C, D
 ## Estrutura
 
 ```
-index.html                 página única com as sete abas
-assets/css/app.css         design system
+index.html                 página única com todas as abas
+
+assets/css/app.css         tokens dos dois modos e biblioteca de componentes
+assets/css/speed.css       peças exclusivas do speed mode (boot, cluster, ECU, dyno)
+
 assets/js/util.js          utilitários, formatação pt-BR, armazenamento local
+assets/js/motion.js        integrador de molas: inclinação, toque, cursor das abas, contagem
+assets/js/audio.js         sons da interface sintetizados em WebAudio (desligado por padrão)
 assets/js/thermal.js       propriedades dos fluidos, correlações, ε–NTU, calibração
 assets/js/csvio.js         leitura de CSV, detecção de colunas, sincronização, auditoria
-assets/js/charts.js        gráficos em canvas
+assets/js/charts.js        gráficos em canvas: séries, dispersão, barras, mostradores, razões
 assets/js/model.js         regressão ridge, validação cruzada, anomalias, alertas
 assets/js/demo.js          gerador de coletas sintéticas
+assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, comparações
+assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro
+assets/js/cmdk.js          paleta de comandos (Ctrl+K)
 assets/js/app.js           interface, estado, relatório
+
 assets/img/                logo, wordmark e favicon
 docs/PROJETO.md            formulário da disciplina e cronograma
 ```
+
+Os módulos de cálculo (`thermal`, `csvio`, `model`, `demo`) não sabem que a interface
+existe. Os módulos de apresentação (`explain`, `speed`, `cmdk`) leem o estado por uma
+superfície só, `ATC.App`, em vez de alcançar variáveis internas do `app.js`.
+
+## Movimento
+
+Nada na interface tem duração fixa. Tudo que se mexe passa por `motion.js`, que integra
+uma mola de verdade:
+
+```
+a = −k(x − alvo) − c·v      v += a·dt      x += v·dt
+```
+
+Interromper um movimento no meio não corta nada: a velocidade que o elemento já tinha
+entra no trecho seguinte. Um único `requestAnimationFrame` serve todos os assinantes e é
+cancelado quando nada mais se move, então o custo em repouso é zero. Cada quadro escreve
+apenas variáveis CSS que alimentam `transform` e `opacity` — sem layout, sem repaint, o
+compositor resolve. É o que sustenta os 60 fps.
+
+Quem tiver *reduzir movimento* ligado no sistema recebe a interface sem inclinação, sem
+partículas e sem a sequência de partida — os estados continuam todos alcançáveis.
+
+Duas decisões saíram de medição, não de gosto:
+
+- **O painel de instrumentos desenha a face uma vez.** Trilha, escala, números e o nome de
+  cada mostrador vão para um canvas fora da tela e são copiados por quadro. Só o arco de
+  valor, o ponteiro e a leitura digital são redesenhados.
+- **Vidro só onde o fundo fica parado.** `backdrop-filter` obriga o navegador a refazer o
+  desfoque sempre que qualquer coisa atrás muda; com o cluster desenhando a 60 Hz, o
+  desfoque nos painéis custava 34 dos 60 quadros por segundo (medido: 27 fps com, 61 fps
+  sem). Os painéis passaram a usar cor translúcida, que no escuro lê igual e não custa
+  nada. O desfoque de verdade ficou no cabeçalho e na paleta de comandos, que flutuam
+  sobre conteúdo estático.
 
 ## Itens pendentes
 

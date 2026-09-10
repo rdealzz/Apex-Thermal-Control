@@ -1,60 +1,88 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-mode="work">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Apex Thermal Control — Monitoramento térmico de radiador automotivo</title>
 <meta name="description" content="Plataforma de monitoramento, análise ε–NTU e previsão de temperatura do sistema de arrefecimento automotivo a partir de dados OBD-II.">
+<meta name="theme-color" content="#f6f7f9">
 <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/speed.css">
 </head>
 <body>
 
-<!-- ===== marca reutilizavel ===== -->
+<!-- ===== marca ===== -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <defs>
-    <linearGradient id="atcHeat" x1="0" y1="64" x2="0" y2="0" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#35c8e8"/><stop offset="0.5" stop-color="#ffb02e"/><stop offset="1" stop-color="#ff5a36"/>
-    </linearGradient>
-    <linearGradient id="atcEdge" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#35c8e8"/><stop offset="1" stop-color="#ff5a36"/>
-    </linearGradient>
-    <symbol id="atcLogo" viewBox="0 0 64 64">
-      <rect x="2" y="2" width="60" height="60" rx="15" fill="#0e151f" stroke="url(#atcEdge)" stroke-width="2.2"/>
-      <g stroke="#27384d" stroke-width="2.4" stroke-linecap="round">
-        <path d="M16 19V51"/><path d="M24 19V51"/><path d="M32 19V51"/><path d="M40 19V51"/><path d="M48 19V51"/>
+    <symbol id="apexMark" viewBox="0 0 64 64">
+      <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3.5" y="3.5" width="57" height="57" rx="15.5" stroke-width="2.6" opacity=".9"/>
+        <g stroke-width="1.9" opacity=".28">
+          <path d="M17 17.5V46.5"/><path d="M24.5 17.5V46.5"/><path d="M32 17.5V46.5"/>
+          <path d="M39.5 17.5V46.5"/><path d="M47 17.5V46.5"/>
+        </g>
+        <path d="M14 43.5 L32 21 L50 43.5" stroke-width="5.4" class="mk-arc"/>
+        <path d="M22 51.5 L32 39 L42 51.5" stroke-width="3" opacity=".45" class="mk-arc"/>
       </g>
-      <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="#0e151f" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M12.5 45 L32 22 L51.5 45" fill="none" stroke="url(#atcHeat)" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="#0e151f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-      <path d="M20 53.5 L32 39.5 L44 53.5" fill="none" stroke="url(#atcHeat)" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.62"/>
     </symbol>
   </defs>
 </svg>
+
+<div id="shell">
 
 <header class="top">
   <div class="wrap">
     <div class="top-row">
       <div class="brand">
-        <svg aria-hidden="true"><use href="#atcLogo"/></svg>
+        <svg viewBox="0 0 64 64" aria-hidden="true"><use href="#apexMark"/></svg>
         <div>
-          <div class="bt1">APEX</div>
-          <div class="bt2">THERMAL CONTROL</div>
+          <div class="bt1">Apex</div>
+          <div class="bt2">Thermal Control</div>
         </div>
       </div>
+
+      <!-- estado da coleta: uma pilula so, que muda conforme o que esta carregado -->
+      <div class="island" id="island" title="Coleta carregada">
+        <span class="isl-dot" aria-hidden="true"></span>
+        <span class="isl-txt" id="dsName">Nenhuma coleta carregada</span>
+        <span class="isl-meta" id="modeBadge">sem dados</span>
+      </div>
+
       <div class="top-right">
-        <span class="badge info" id="dsBadge"><span class="dot"></span><span id="dsName">Nenhuma coleta carregada</span></span>
-        <span class="badge" id="modeBadge">Modo —</span>
+        <button class="kbd-btn" id="btnCmd" type="button" aria-label="Abrir a paleta de comandos">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="14" height="14" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 14 14" stroke-linecap="round"/>
+          </svg>
+          <span class="kbd-lab">Buscar ação</span>
+          <kbd id="cmdKey">Ctrl K</kbd>
+        </button>
+        <button class="icon-btn" id="btnSound" type="button" aria-pressed="false" title="Som da interface — desligado" aria-label="Som da interface">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 8h2.5L11 4.8v10.4L7.5 12H5z"/>
+            <path d="M13.6 7.6a3.4 3.4 0 0 1 0 4.8" class="snd-on"/>
+            <path d="M14 7.5l3.5 5M17.5 7.5l-3.5 5" class="snd-off"/>
+          </svg>
+        </button>
+        <button class="speed-btn" id="btnSpeed" type="button" aria-pressed="false">
+          <span class="led" aria-hidden="true"></span><span class="sb-lab">Speed mode</span>
+        </button>
       </div>
     </div>
+
     <nav class="tabs" role="tablist" aria-label="Seções">
-      <button role="tab" data-tab="painel" aria-selected="true">Painel</button>
-      <button role="tab" data-tab="importar" aria-selected="false">Importar dados</button>
-      <button role="tab" data-tab="analise" aria-selected="false">Análise térmica</button>
-      <button role="tab" data-tab="ia" aria-selected="false">Previsão (IA)</button>
-      <button role="tab" data-tab="alertas" aria-selected="false">Alertas</button>
-      <button role="tab" data-tab="relatorio" aria-selected="false">Relatório</button>
-      <button role="tab" data-tab="projeto" aria-selected="false">Projeto</button>
+      <span class="shuttle" aria-hidden="true"></span>
+      <button role="tab" data-tab="painel"    aria-selected="true"><span class="idx">01</span>Painel</button>
+      <button role="tab" data-tab="entenda"   aria-selected="false"><span class="idx">02</span>Entenda o cálculo</button>
+      <button role="tab" data-tab="importar"  aria-selected="false"><span class="idx">03</span>Importar dados</button>
+      <button role="tab" data-tab="analise"   aria-selected="false"><span class="idx">04</span>Análise térmica</button>
+      <button role="tab" data-tab="ia"        aria-selected="false"><span class="idx">05</span>Previsão</button>
+      <button role="tab" data-tab="alertas"   aria-selected="false"><span class="idx">06</span>Alertas</button>
+      <button role="tab" data-tab="relatorio" aria-selected="false"><span class="idx">07</span>Relatório</button>
+      <button role="tab" data-tab="projeto"   aria-selected="false"><span class="idx">08</span>Projeto</button>
+      <button role="tab" data-tab="cluster" class="speed-only" aria-selected="false"><span class="idx">S1</span>Cluster</button>
+      <button role="tab" data-tab="ecu"     class="speed-only" aria-selected="false"><span class="idx">S2</span>ECU</button>
+      <button role="tab" data-tab="dyno"    class="speed-only" aria-selected="false"><span class="idx">S3</span>Dyno</button>
     </nav>
   </div>
 </header>
@@ -63,13 +91,19 @@
 
 <!-- ================= PAINEL ================= -->
 <section class="tab" id="tab-painel" role="tabpanel">
+  <div class="sec-head">
+    <span class="sh-idx">01</span>
+    <h1>Painel</h1>
+    <p class="sh-sub">Leitura da coleta instante a instante: temperaturas, calor rejeitado e condição de operação.</p>
+  </div>
+
   <div class="banner" id="demoBanner" hidden>
     <span style="font-size:18px">⚠︎</span>
     <div><strong>Modo demonstração — dados sintéticos.</strong>
       <span id="demoBannerTxt">A série exibida foi gerada por simulação física, não é medição real do veículo. Serve para validar a plataforma antes da primeira campanha de coleta.</span></div>
   </div>
 
-  <div class="banner" id="calibBanner" hidden style="border-color:#1b5f72;background:linear-gradient(180deg,rgba(53,200,232,.13),rgba(53,200,232,.05));color:#b9e9f7">
+  <div class="banner info" id="calibBanner" hidden>
     <span style="font-size:18px">◎</span>
     <div><strong>Linha de base não definida.</strong> O índice de saúde compara o UA medido com o UA previsto pelas correlações, que carrega o viés da geometria estimada.
       Rode <b>Calibrar pelos dados desta coleta</b> na aba <b>Análise térmica</b> usando uma coleta com o radiador em bom estado — só depois disso a queda do índice indica degradação real.</div>
@@ -78,7 +112,7 @@
   <div id="painelEmpty" class="card">
     <div class="empty">
       <span class="big">📡</span>
-      <strong style="color:var(--txt);font-size:15px">Nenhuma coleta carregada</strong><br>
+      <strong style="color:var(--ink);font-size:14.5px">Nenhuma coleta carregada</strong><br>
       Importe um CSV do scanner OBD-II na aba <b>Importar dados</b>, ou carregue uma coleta de demonstração para ver a plataforma em operação.
       <div class="btn-row" style="justify-content:center;margin-top:16px">
         <button class="btn primary" data-goto="importar">Ir para Importar dados</button>
@@ -91,7 +125,7 @@
     <div class="kpis" id="kpiRow"></div>
 
     <div class="grid g-2-1" style="margin-top:16px">
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-h">
           <span class="ct">Temperaturas do circuito de arrefecimento</span>
           <span class="cs">medido × previsto em <span id="hzLabel">+5 min</span></span>
@@ -104,7 +138,7 @@
           <span class="t" id="scrubT">--:-- / --:--</span>
         </div>
       </div>
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-box"><canvas id="gaugeEct"></canvas></div>
         <div class="chart-box" style="margin-top:6px"><canvas id="gaugeEps"></canvas></div>
         <div class="chart-box" style="margin-top:6px"><canvas id="gaugeHealth"></canvas></div>
@@ -112,19 +146,19 @@
     </div>
 
     <div class="grid g2">
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-h"><span class="ct">Calor rejeitado e efetividade</span><span class="cs">balanço de energia no radiador</span></div>
         <div class="chart-box"><canvas id="chartQ"></canvas></div>
         <div class="legend" id="legQ"></div>
       </div>
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-h"><span class="ct">Condição de operação</span><span class="cs">variáveis lidas do scanner</span></div>
         <div class="chart-box"><canvas id="chartOp"></canvas></div>
         <div class="legend" id="legOp"></div>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card lift ticked">
       <div class="spread">
         <div>
           <h3>Situação do instante selecionado</h3>
@@ -137,9 +171,182 @@
   </div>
 </section>
 
+
+<!-- ================= ENTENDA O CALCULO ================= -->
+<section class="tab" id="tab-entenda" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">02</span>
+    <h1>Entenda o cálculo</h1>
+    <p class="sh-sub">A mesma conta da aba de análise, dita em português e desenhada. Comece por aqui antes de olhar as tabelas.</p>
+  </div>
+
+  <div id="exEmpty" class="card lift">
+    <div class="empty">
+      <span class="big">◎</span>
+      <strong style="color:var(--ink);font-size:14.5px">Nada para explicar ainda</strong><br>
+      Carregue uma coleta e esta aba mostra, passo a passo, de onde sai cada número.
+      <div class="btn-row" style="justify-content:center;margin-top:18px">
+        <button class="btn primary" data-goto="importar">Importar dados</button>
+        <button class="btn" id="btnExDemo">Carregar demonstração</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="exBody" hidden>
+
+    <!-- ---------- 1. o caminho do calor ---------- -->
+    <div class="card lift ticked">
+      <h2>O caminho do calor</h2>
+      <p class="hint">O motor queima combustível e sobra calor. O líquido leva esse calor até o radiador, o ar da frente do carro atravessa o núcleo e leva o calor embora. Tudo que a plataforma calcula é quanto calor faz esse caminho por segundo — e o quanto disso era possível.</p>
+
+      <svg class="circuit" viewBox="0 0 920 448" role="img" aria-labelledby="circTitle">
+        <title id="circTitle">Esquema do circuito de arrefecimento com os valores medidos na coleta</title>
+
+        <!-- ordem importa: o corpo do radiador e opaco, entao as setas
+             de ar vem depois dele, e a leitura de calor por ultimo -->
+        <rect class="part" x="430" y="96" width="340" height="220" rx="11"/>
+        <rect class="part" x="430" y="96" width="32" height="220" rx="9"/>
+        <rect class="part" x="738" y="96" width="32" height="220" rx="9"/>
+        <g class="tubes" fill="none" stroke-width="3.4">
+          <path d="M462 126 H738"/><path d="M462 158 H738"/><path d="M462 190 H738"/>
+          <path d="M462 222 H738"/><path d="M462 254 H738"/><path d="M462 286 H738"/>
+        </g>
+
+        <!-- o ar atravessa o nucleo de baixo para cima. Cada seta e um
+             traco curto que sobe: so transform e opacity, resolvido na
+             GPU, sem tocar em layout.                                 -->
+        <g class="air" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2">
+          <path class="air-arrow" d="M486 222 V190 M480 200 L486 188 L492 200" style="animation-delay:0ms"/>
+          <path class="air-arrow" d="M528 222 V190 M522 200 L528 188 L534 200" style="animation-delay:130ms"/>
+          <path class="air-arrow" d="M672 222 V190 M666 200 L672 188 L678 200" style="animation-delay:260ms"/>
+          <path class="air-arrow" d="M714 222 V190 M708 200 L714 188 L720 200" style="animation-delay:390ms"/>
+        </g>
+
+        <text class="lbl" x="600" y="86" text-anchor="middle">RADIADOR — FLUXO CRUZADO</text>
+        <rect class="plate" x="492" y="170" width="216" height="70" rx="13"/>
+        <text class="val big" x="600" y="206" text-anchor="middle">
+          <tspan id="exQ">--</tspan><tspan class="unit"> kW</tspan></text>
+        <text class="lbl" x="600" y="228" text-anchor="middle">calor retirado do líquido</text>
+
+        <text class="lbl" x="452" y="26">AR QUE SAI — aquecido pelo núcleo</text>
+        <text class="val" x="452" y="50"><tspan id="exTairOut">--</tspan><tspan class="unit"> °C</tspan></text>
+        <text class="lbl" x="452" y="416">AR QUE ENTRA — ambiente, empurrado pela velocidade e pelo ventilador</text>
+        <text class="val" x="452" y="438"><tspan id="exTamb">--</tspan><tspan class="unit"> °C  ·  </tspan><tspan id="exVair">--</tspan><tspan class="unit"> m/s na face</tspan></text>
+
+        <!-- motor -->
+        <rect class="part" x="60" y="140" width="190" height="132" rx="13"/>
+        <text class="lbl" x="155" y="168" text-anchor="middle">MOTOR</text>
+        <text class="val" x="155" y="198" text-anchor="middle"><tspan id="exRpm">--</tspan><tspan class="unit"> rpm</tspan></text>
+        <text class="lbl" x="155" y="224" text-anchor="middle">calor gerado</text>
+        <text class="val" x="155" y="252" text-anchor="middle"><tspan id="exQgen">--</tspan><tspan class="unit"> kW</tspan></text>
+
+        <!-- mangueira superior: o liquido quente sobe para o radiador -->
+        <path class="hose" d="M250 172 C 330 172 356 128 430 128" stroke-width="15" fill="none" stroke-linecap="round"/>
+        <path class="flow hot" d="M250 172 C 330 172 356 128 430 128" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+        <text class="lbl" x="266" y="112">ENTRA QUENTE</text>
+        <text class="val" x="266" y="136"><tspan id="exTHot">--</tspan><tspan class="unit"> °C</tspan></text>
+
+        <!-- retorno pela bomba: ja resfriado -->
+        <path class="hose" d="M754 316 V374 H172 V272" stroke-width="15" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path class="flow cold rev" d="M754 316 V374 H172 V272" stroke-width="4.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle class="part" cx="470" cy="374" r="25"/>
+        <text class="lbl" x="470" y="378" text-anchor="middle">BOMBA</text>
+        <text class="lbl" x="734" y="338" text-anchor="end">VOLTA FRIO</text>
+        <text class="val" x="734" y="362" text-anchor="end"><tspan id="exTCold">--</tspan><tspan class="unit"> °C</tspan></text>
+
+        <!-- a diferenca entre as duas mangueiras e o que fecha o balanco -->
+        <text class="lbl" x="196" y="306">O QUE O RADIADOR TIROU</text>
+        <text class="val big" x="196" y="336"><tspan class="unit">ΔT </tspan><tspan id="exDT">--</tspan><tspan class="unit"> °C</tspan></text>
+        <text class="lbl" x="196" y="358"><tspan id="exMdot">--</tspan> kg/s de líquido</text>
+      </svg>
+
+      <div class="reading" id="exFlowRead"></div>
+    </div>
+
+    <!-- ---------- 2. os quatro numeros ---------- -->
+    <div class="card lift ticked">
+      <h2>Os quatro números que decidem tudo</h2>
+      <p class="hint">Cada barra compara o que aconteceu com o que era possível acontecer. É a mesma informação das tabelas, sem precisar da tabela.</p>
+      <div class="grid g2">
+        <div>
+          <div class="chart-box"><canvas id="exRatioEps"></canvas></div>
+          <div class="reading" id="exReadEps"></div>
+        </div>
+        <div>
+          <div class="chart-box"><canvas id="exRatioDT"></canvas></div>
+          <div class="reading" id="exReadDT"></div>
+        </div>
+        <div>
+          <div class="chart-box"><canvas id="exRatioUA"></canvas></div>
+          <div class="reading" id="exReadUA"></div>
+        </div>
+        <div>
+          <div class="chart-box"><canvas id="exRatioHealth"></canvas></div>
+          <div class="reading" id="exReadHealth"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- 3. passo a passo ---------- -->
+    <div class="card lift ticked">
+      <h2>Passo a passo, com os números desta coleta</h2>
+      <p class="hint">A memória de cálculo na ordem em que a conta acontece. Os valores são as médias da parte útil da coleta — o aquecimento a frio fica de fora, porque com o termostato fechado não passa líquido pelo radiador.</p>
+      <div class="steps" id="calcSteps"></div>
+    </div>
+
+    <!-- ---------- 4. onde esta a dificuldade ---------- -->
+    <div class="grid g2">
+      <div class="card lift ticked">
+        <h3>Onde o calor encontra resistência</h3>
+        <p class="hint">O calor atravessa três barreiras em série. A soma das três é o que limita o radiador — e é por isso que mexer no lado do ar muda tudo e mexer na parede não muda quase nada.</p>
+        <div class="chart-box"><canvas id="chartRes"></canvas></div>
+        <div class="reading" id="exReadRes"></div>
+      </div>
+      <div class="card lift ticked">
+        <h3>E se o carro andasse mais rápido?</h3>
+        <p class="hint">O modelo recalculado para várias velocidades, mantendo o resto do ponto de operação. Mostra por que engarrafamento esquenta e estrada não.</p>
+        <div class="chart-box"><canvas id="chartWhatIf"></canvas></div>
+        <div class="legend" id="legWhatIf"></div>
+        <div class="reading" id="exReadWhatIf"></div>
+      </div>
+    </div>
+
+    <!-- ---------- 5. glossario ---------- -->
+    <div class="card lift ticked">
+      <h2>O que cada símbolo quer dizer</h2>
+      <p class="hint">Sem fórmula, sem índice. Uma frase por símbolo.</p>
+      <div class="gloss">
+        <div class="g-item"><div class="g-sym">Q̇</div><div class="g-name">Calor rejeitado</div>
+          <div class="g-txt">Quanta energia o radiador tira do líquido a cada segundo. Em kW, igual à potência de um chuveiro elétrico — só que dez a trinta vezes maior.</div></div>
+        <div class="g-item"><div class="g-sym">Q̇<sub>máx</sub></div><div class="g-name">Teto termodinâmico</div>
+          <div class="g-txt">O máximo que qualquer radiador do mundo conseguiria com esse líquido, esse ar e essa diferença de temperatura. Ninguém passa disso.</div></div>
+        <div class="g-item"><div class="g-sym">ε</div><div class="g-name">Efetividade</div>
+          <div class="g-txt">A fração do teto que este radiador alcançou. 0,55 quer dizer que ele entregou 55% do máximo possível. Radiador automotivo bom fica entre 0,40 e 0,70.</div></div>
+        <div class="g-item"><div class="g-sym">ΔT</div><div class="g-name">Queda de temperatura</div>
+          <div class="g-txt">Quanto o líquido esfriou entre entrar e sair do radiador. É a medida mais direta que existe: sem ela, a efetividade vira estimativa.</div></div>
+        <div class="g-item"><div class="g-sym">UA</div><div class="g-name">Condutância global</div>
+          <div class="g-txt">A facilidade com que o calor atravessa o radiador, em watts por grau de diferença. É a nota de desempenho do trocador, independente da temperatura do dia.</div></div>
+        <div class="g-item"><div class="g-sym">NTU</div><div class="g-name">Tamanho relativo</div>
+          <div class="g-txt">O UA comparado com a capacidade de quem passa por lá. Diz se o radiador é grande ou pequeno para a vazão que ele está recebendo naquele instante.</div></div>
+        <div class="g-item"><div class="g-sym">C<sub>r</sub></div><div class="g-name">Razão de capacidades</div>
+          <div class="g-txt">Qual dos dois fluidos é o gargalo — o líquido ou o ar. Perto de zero, um deles domina; perto de um, os dois pesam igual.</div></div>
+        <div class="g-item"><div class="g-sym">η</div><div class="g-name">Índice de saúde</div>
+          <div class="g-txt">O UA medido dividido pelo UA que o modelo previa. Cai quando as aletas entopem, o fluido degrada ou o núcleo incrusta. É o alerta de manutenção.</div></div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
 <!-- ================= IMPORTAR ================= -->
 <section class="tab" id="tab-importar" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">03</span>
+    <h1>Importar dados</h1>
+    <p class="sh-sub">CSV do scanner OBD-II e do logger de temperatura. As colunas são detectadas e as duas fontes, sincronizadas.</p>
+  </div>
+
+  <div class="card lift ticked">
     <h2>Importar dados de uma coleta</h2>
     <p class="hint">Duas fontes por campanha: o CSV gravado pelo aplicativo no Android (scanner OBD-II) e o CSV do logger de temperatura (ESP32 + DS18B20). A plataforma detecta as colunas, converte unidades e sincroniza os dois arquivos pelo horário.</p>
 
@@ -184,7 +391,7 @@
     </div>
   </div>
 
-  <div class="card" id="mapCard" hidden>
+  <div class="card lift" id="mapCard" hidden>
     <h2>Mapeamento de colunas</h2>
     <p class="hint">A detecção automática já preencheu o que reconheceu. Corrija manualmente se alguma coluna do seu arquivo tiver nome diferente.</p>
     <div class="grid g2">
@@ -213,7 +420,7 @@
     </div>
   </div>
 
-  <div class="card" id="auditCard" hidden>
+  <div class="card lift" id="auditCard" hidden>
     <h2>Qualidade da base</h2>
     <div class="kpis" id="auditKpis" style="margin-bottom:14px"></div>
     <div id="auditIssues"></div>
@@ -231,7 +438,13 @@
 
 <!-- ================= ANALISE TERMICA ================= -->
 <section class="tab" id="tab-analise" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">04</span>
+    <h1>Análise térmica</h1>
+    <p class="sh-sub">Balanço de energia e método efetividade–NTU, com os resultados separados por regime de operação.</p>
+  </div>
+
+  <div class="card lift ticked">
     <h2>Método de cálculo</h2>
     <p class="hint">Balanço de energia em volume de controle e método efetividade–NTU para trocador de calor de escoamento cruzado com ambos os fluidos não-misturados.</p>
     <div class="grid g2">
@@ -251,7 +464,7 @@
     <div class="note" id="modeNote">Carregue uma coleta para ver os resultados.</div>
   </div>
 
-  <div class="card" id="anaResults" hidden>
+  <div class="card lift" id="anaResults" hidden>
     <h2>Resultados por regime de operação</h2>
     <p class="hint">Amostras do regime de aquecimento (termostato fechado) são excluídas: sem vazão pelo radiador não há troca a caracterizar.</p>
     <div class="tbl-scroll"><table id="tblRegimes"></table></div>
@@ -282,7 +495,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card lift ticked">
     <h2>Parâmetros do modelo</h2>
     <p class="hint">Valores iniciais estimados para o Chevrolet Cruze 1.8 (2016). Substitua pelas medições do radiador real assim que a bancada estiver instrumentada — a geometria do núcleo é o que mais afeta o UA teórico.</p>
     <div class="btn-row" style="margin-bottom:14px">
@@ -297,7 +510,13 @@
 
 <!-- ================= IA / PREVISAO ================= -->
 <section class="tab" id="tab-ia" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">05</span>
+    <h1>Previsão</h1>
+    <p class="sh-sub">Regressão regularizada em janela deslizante prevê a variação de temperatura no horizonte escolhido.</p>
+  </div>
+
+  <div class="card lift ticked">
     <h2>Previsão da temperatura do líquido de arrefecimento</h2>
     <p class="hint">Modelo supervisionado de regressão linear regularizada (ridge) sobre janela deslizante. O alvo é a <b>variação</b> de temperatura no horizonte escolhido, não o valor absoluto — isso remove o nível, que percorre quase 60 °C durante o aquecimento, e faz a linha de base trivial equivaler a prever "continua igual".</p>
     <div class="param-grid">
@@ -333,25 +552,25 @@
   <div id="iaEmpty" class="card"><div class="empty"><span class="big">🧠</span>Carregue uma coleta e clique em <b>Treinar modelo</b>.</div></div>
 
   <div id="iaBody" hidden>
-    <div class="card">
+    <div class="card lift ticked">
       <div class="spread"><h2>Desempenho</h2><span class="badge" id="verdictBadge">—</span></div>
       <p class="hint" id="iaProto"></p>
       <div class="kpis" id="iaKpis"></div>
       <div class="note" id="iaNote" style="margin-top:14px"></div>
     </div>
 
-    <div class="card">
+    <div class="card lift ticked">
       <div class="chart-h"><span class="ct">Temperatura medida × prevista</span><span class="cs">a previsão está deslocada para o instante-alvo</span></div>
       <div class="chart-box"><canvas id="chartPred"></canvas></div>
       <div class="legend" id="legPred"></div>
     </div>
 
     <div class="grid g2">
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-h"><span class="ct">Previsto × medido</span><span class="cs">quanto mais próximo da diagonal, melhor</span></div>
         <div class="chart-box"><canvas id="chartParity"></canvas></div>
       </div>
-      <div class="card">
+      <div class="card lift ticked">
         <div class="chart-h"><span class="ct">Erro do modelo por λ</span><span class="cs">validação cruzada em blocos contíguos</span></div>
         <div class="chart-box"><canvas id="chartLambda"></canvas></div>
         <div class="legend" id="legLambda"></div>
@@ -359,12 +578,12 @@
     </div>
 
     <div class="grid g2">
-      <div class="card">
+      <div class="card lift ticked">
         <h3>Peso das variáveis de entrada</h3>
         <p class="hint">Coeficientes padronizados: comparáveis entre si. Positivo = aumenta a temperatura prevista.</p>
         <div class="chart-box"><canvas id="chartWeights"></canvas></div>
       </div>
-      <div class="card">
+      <div class="card lift ticked">
         <h3>Anomalias detectadas</h3>
         <p class="hint">Baseadas na queda sustentada do índice de saúde (UA medido ÷ UA previsto) e em aquecimento sob condição que deveria refrigerar.</p>
         <div class="tbl-scroll"><table class="compact" id="tblAnom"></table></div>
@@ -375,7 +594,13 @@
 
 <!-- ================= ALERTAS ================= -->
 <section class="tab" id="tab-alertas" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">06</span>
+    <h1>Alertas</h1>
+    <p class="sh-sub">Alerta preditivo emitido pela temperatura prevista, e a antecedência que ele conseguiu sobre o limite crítico.</p>
+  </div>
+
+  <div class="card lift ticked">
     <h2>Limites e critérios de alerta</h2>
     <div class="param-grid">
       <div class="field"><label class="fld" for="inTWarn">Atenção <span class="unit">°C</span></label><input type="number" id="inTWarn" value="100" step="1"></div>
@@ -389,16 +614,16 @@
   <div id="alertEmpty" class="card"><div class="empty"><span class="big">🔔</span>Treine o modelo na aba <b>Previsão (IA)</b> para habilitar os alertas preditivos.</div></div>
 
   <div id="alertBody" hidden>
-    <div class="card">
+    <div class="card lift ticked">
       <div class="kpis" id="alertKpis"></div>
       <div class="note" id="alertVerdict" style="margin-top:14px"></div>
     </div>
-    <div class="card">
+    <div class="card lift ticked">
       <div class="chart-h"><span class="ct">Linha do tempo dos alertas</span><span class="cs">temperatura medida, prevista e limites</span></div>
       <div class="chart-box"><canvas id="chartAlert"></canvas></div>
       <div class="legend" id="legAlert"></div>
     </div>
-    <div class="card">
+    <div class="card lift ticked">
       <h3>Ocorrências</h3>
       <div class="tbl-scroll"><table class="compact" id="tblAlerts"></table></div>
     </div>
@@ -407,7 +632,13 @@
 
 <!-- ================= RELATORIO ================= -->
 <section class="tab" id="tab-relatorio" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">07</span>
+    <h1>Relatório</h1>
+    <p class="sh-sub">Relatório técnico da coleta, exportável em PDF, CSV e JSON.</p>
+  </div>
+
+  <div class="card lift ticked">
     <div class="spread">
       <div><h2>Relatório técnico da coleta</h2>
         <p class="hint" style="margin-bottom:0">Gerado a partir dos dados carregados e dos parâmetros vigentes.</p></div>
@@ -419,14 +650,20 @@
       </div>
     </div>
   </div>
-  <div class="card report" id="reportBody">
+  <div class="card report lift" id="reportBody">
     <div class="empty"><span class="big">📄</span>Clique em <b>Gerar relatório</b>.</div>
   </div>
 </section>
 
 <!-- ================= PROJETO ================= -->
 <section class="tab" id="tab-projeto" role="tabpanel" hidden>
-  <div class="card">
+  <div class="sec-head">
+    <span class="sh-idx">08</span>
+    <h1>Projeto</h1>
+    <p class="sh-sub">Escopo, ementa, método, riscos e itens pendentes da disciplina.</p>
+  </div>
+
+  <div class="card lift ticked">
     <div class="spread">
       <div style="display:flex;gap:14px;align-items:center">
         <svg style="width:56px;height:56px;flex:0 0 auto" aria-hidden="true"><use href="#atcLogo"/></svg>
@@ -448,7 +685,7 @@
     </dl>
   </div>
 
-  <div class="card">
+  <div class="card lift ticked">
     <h2>Itens pendentes de confirmação</h2>
     <p class="hint">Campos do formulário da disciplina que dependem de informação que ainda não temos. O restante já está preenchido a partir do tema definido.</p>
     <ul class="check">
@@ -463,7 +700,7 @@
   </div>
 
   <div class="grid g2">
-    <div class="card">
+    <div class="card lift ticked">
       <h3>Problema e produto</h3>
       <h4>Problema real</h4>
       <p>O sistema de arrefecimento veicular opera de forma reativa: o eletroventilador só é acionado quando o líquido já atingiu o setpoint. Não existe previsão de tendência térmica nem indicador de perda de desempenho do radiador — obstrução de aletas, incrustação interna, fluido degradado — e a falha só se manifesta quando ocorre o superaquecimento.</p>
@@ -474,7 +711,7 @@
       <h4>Benefício esperado</h4>
       <p>Antecipar o superaquecimento em minutos, permitir manutenção preditiva do radiador e quantificar sua efetividade real em operação.</p>
     </div>
-    <div class="card">
+    <div class="card lift ticked">
       <h3>Núcleo da ementa</h3>
       <h4>Núcleo principal</h4>
       <p>Trocadores de calor: efetividade–NTU. Núcleo associado: convecção natural e forçada.</p>
@@ -494,7 +731,7 @@
   </div>
 
   <div class="grid g2">
-    <div class="card">
+    <div class="card lift ticked">
       <h3>Produto e método</h3>
       <h4>Escopo mínimo viável</h4>
       <p>Coletar séries temporais reais via OBD-II no veículo próprio, armazenar, calcular o calor rejeitado e a efetividade do radiador pelo método ε–NTU e apresentar os resultados em gráficos e relatórios nesta plataforma. A previsão por IA é a extensão: se não for concluída, o estudo térmico e o dashboard já se sustentam como entrega.</p>
@@ -509,7 +746,7 @@
       <h4>Recursos</h4>
       <p>Sensores, simulação, dados externos e o veículo próprio como bancada real. Laboratório e microcontrolador conforme confirmação dos itens pendentes.</p>
     </div>
-    <div class="card">
+    <div class="card lift ticked">
       <h3>IA e validação</h3>
       <h4>Função da IA</h4>
       <p>Previsão de temperatura e detecção de anomalias.</p>
@@ -528,7 +765,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card lift ticked">
     <h3>Riscos, segurança e primeira tarefa</h3>
     <div class="grid g2">
       <div>
@@ -550,7 +787,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card lift ticked">
     <h3>Como esta plataforma foi construída</h3>
     <p class="hint">HTML, CSS e JavaScript sem dependências externas: abre por duplo clique no arquivo <code>index.html</code>, sem servidor e sem internet. Todo o processamento acontece no navegador — nenhum dado da coleta sai da máquina.</p>
     <div class="tbl-scroll"><table class="compact">
@@ -567,12 +804,83 @@
   </div>
 </section>
 
+<!-- ================= SPEED MODE — CLUSTER ================= -->
+<section class="tab speed-tab" id="tab-cluster" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S1</span>
+    <h1>Cluster</h1>
+    <p class="sh-sub">Painel de instrumentos alimentado pela telemetria real da coleta carregada. Ponteiros, escalas e alarmes são reais — o estilo é que é homenagem.</p>
+  </div>
+
+  <div class="hud-frame">
+    <div class="shift-strip" id="shiftStrip" aria-hidden="true"></div>
+    <div class="cluster-wrap">
+      <canvas id="spdCluster" aria-label="Painel de instrumentos"></canvas>
+    </div>
+    <div class="hud-strip" id="hudStrip"></div>
+  </div>
+
+  <div class="grid g-2-1">
+    <div class="hud-card">
+      <div class="hud-card-h"><span class="hc-t">Telemetria</span><span class="hc-s" id="teleClock">--:--</span></div>
+      <div class="chart-box"><canvas id="spdTrace"></canvas></div>
+      <div class="player">
+        <button class="btn sm" id="btnSpdPlay">▶ Rodar telemetria</button>
+        <input type="range" id="spdScrub" min="0" max="100" value="100" step="1" style="flex:1;min-width:170px" aria-label="Instante da telemetria">
+        <span class="t" id="spdTime">--:-- / --:--</span>
+      </div>
+    </div>
+
+    <div class="hud-card nitro-card">
+      <div class="hud-card-h"><span class="hc-t">Nitro</span><span class="hc-s" id="nitroState">CHARGING</span></div>
+      <div class="nitro-bar"><div class="nitro-fill" id="nitroFill"></div></div>
+      <p class="nitro-hint" id="nitroHint">A carga sobe conforme a margem térmica: quanto mais longe do limite crítico, mais rápido enche.</p>
+      <button class="btn lg nitro-btn" id="btnNitro" disabled>NITRO</button>
+      <p class="nitro-foot">Puramente visual. Nenhum dado é alterado.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SPEED MODE — ECU ================= -->
+<section class="tab speed-tab" id="tab-ecu" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S2</span>
+    <h1>ECU</h1>
+    <p class="sh-sub">Central eletrônica fictícia. Cada tela lê um recorte diferente dos mesmos dados que alimentam a análise térmica.</p>
+  </div>
+  <div class="ecu-shell">
+    <div class="ecu-rail" id="ecuRail" role="tablist" aria-label="Telas da ECU"></div>
+    <div class="ecu-pane" id="ecuPane"></div>
+  </div>
+</section>
+
+<!-- ================= SPEED MODE — DYNO ================= -->
+<section class="tab speed-tab" id="tab-dyno" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S3</span>
+    <h1>Dyno</h1>
+    <p class="sh-sub">Ensaio em rolo: a rotação sobe e as curvas do radiador são traçadas junto. É a mesma física da aba de análise, apresentada como uma passada de dinamômetro.</p>
+  </div>
+  <div class="hud-frame">
+    <div class="dyno-head">
+      <div class="dyno-read"><span class="dr-lab">Potência térmica</span><span class="dr-val" id="dynoQ">--</span><span class="dr-u">kW</span></div>
+      <div class="dyno-read"><span class="dr-lab">Efetividade</span><span class="dr-val" id="dynoEps">--</span><span class="dr-u">ε</span></div>
+      <div class="dyno-read"><span class="dr-lab">Condutância</span><span class="dr-val" id="dynoUA">--</span><span class="dr-u">W/K</span></div>
+      <div class="dyno-read"><span class="dr-lab">Rotação</span><span class="dr-val" id="dynoRpm">--</span><span class="dr-u">rpm</span></div>
+      <button class="btn primary" id="btnDyno" style="margin-left:auto">Iniciar passada</button>
+    </div>
+    <div class="chart-box"><canvas id="dynoChart"></canvas></div>
+    <div class="legend" id="legDyno"></div>
+    <div class="reading" id="dynoRead">Uma passada varre a rotação do motor de marcha lenta ao corte e recalcula, para cada rotação, a vazão da bomba, a velocidade do ar na face e o UA das correlações.</div>
+  </div>
+</section>
+
 </main>
 
 <footer class="foot">
   <div class="wrap foot-row">
     <div>
-      <strong style="color:var(--txt-2)">Apex Thermal Control</strong> — Análise térmica do radiador automotivo com monitoramento e previsão de temperatura<br>
+      <strong style="color:var(--ink-2)">Apex Thermal Control</strong> — Análise térmica do radiador automotivo com monitoramento e previsão de temperatura<br>
       Transferência de Calor · UniCuritiba · bancada: Chevrolet Cruze LT 1.8 (2016)
     </div>
     <div style="text-align:right">
@@ -582,12 +890,33 @@
   </div>
 </footer>
 
+</div><!-- /#shell -->
+
+<div class="boot" id="bootLayer" hidden aria-hidden="true">
+  <div class="boot-scan"></div>
+  <div class="boot-inner">
+    <pre class="boot-log" id="bootLog"></pre>
+    <div class="boot-bar"><div class="boot-bar-fill" id="bootBar"></div></div>
+    <div class="boot-sig" id="bootSig" hidden>
+      <div class="bs-mark"><svg viewBox="0 0 64 64" aria-hidden="true"><use href="#apexMark"/></svg></div>
+      <div class="bs-name">APEX PERFORMANCE OS</div>
+      <div class="bs-sub">Driver Loaded · Telemetry Active · Engine Online</div>
+    </div>
+  </div>
+</div>
+
+
 <script src="assets/js/util.js"></script>
+<script src="assets/js/motion.js"></script>
+<script src="assets/js/audio.js"></script>
 <script src="assets/js/thermal.js"></script>
 <script src="assets/js/csvio.js"></script>
 <script src="assets/js/charts.js"></script>
 <script src="assets/js/model.js"></script>
 <script src="assets/js/demo.js"></script>
+<script src="assets/js/explain.js"></script>
+<script src="assets/js/speed.js"></script>
+<script src="assets/js/cmdk.js"></script>
 <script src="assets/js/app.js"></script>
 </body>
 </html>

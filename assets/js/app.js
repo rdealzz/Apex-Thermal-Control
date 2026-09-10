@@ -7,12 +7,50 @@
   var U = ATC.U, T = ATC.Thermal, C = ATC.CsvIO, G = ATC.Charts, M = ATC.Model, D = ATC.Demo;
   var $ = U.$, $$ = U.$$;
 
-  var COL = {
-    hot: '#ff6b4a', cold: '#35c8e8', amb: '#6b7f99', pred: '#9b8cff',
-    ok: '#2fdd8e', warn: '#ffb02e', crit: '#ff3b30', eps: '#ffb02e',
-    q: '#35c8e8', rpm: '#9b8cff', spd: '#2fdd8e', load: '#ffb02e',
-    ua: '#35c8e8', uaMod: '#8296ae', gen: '#ff9f43'
+  /* ============================================================
+     Paleta das series
+     ------------------------------------------------------------
+     Duas paletas, uma por modo. O modo de trabalho e desenhado
+     sobre papel claro e precisa de cores com peso suficiente para
+     nao sumir; o speed mode e HUD sobre carbono e usa o vermelho
+     so onde ha alarme de verdade. COL e mutado no lugar em vez de
+     substituido, para que todo modulo que ja guardou a referencia
+     continue vendo a paleta certa depois da troca.
+     ============================================================ */
+  var PALETTES = {
+    work: {
+      hot: '#d1592a', cold: '#2450e0', amb: '#9aa1b0', pred: '#7a4fd8',
+      ok: '#0f8f62', warn: '#b0770d', crit: '#c72c1f', eps: '#b0770d',
+      q: '#2450e0', qArea: 'rgba(36,80,224,.10)', rpm: '#7a4fd8', spd: '#0f8f62', load: '#b0770d',
+      ua: '#2450e0', uaMod: '#9aa1b0', gen: '#d1592a', mark: '#0d0f14',
+      grid: '#eceef3', ideal: '#c3c8d2', train: '#9aa1b0',
+      epsFrom: '#e0c07a', dtFrom: '#efc4ae', uaFrom: '#a9beff', healthFrom: '#a5ddc6', critFrom: '#f0b3ac',
+      resAir: '#2450e0', resWall: '#d9dce2', resCool: '#d1592a',
+      zoneCold: '#e3e8fb', zoneOk: '#dff0e8', zoneWarn: '#f7ecd5', zoneCrit: '#f8dfdc',
+      bandWarn: 'rgba(176,119,13,.08)',
+      crCurve: ['#2450e0', '#0f8f62', '#b0770d', '#d1592a', '#c72c1f']
+    },
+    speed: {
+      hot: '#ff7a3d', cold: '#12b6ff', amb: '#5a6376', pred: '#3ff0e0',
+      ok: '#2fe08a', warn: '#ffb020', crit: '#ff3b30', eps: '#ffb020',
+      q: '#12b6ff', qArea: 'rgba(18,182,255,.14)', rpm: '#3ff0e0', spd: '#2fe08a', load: '#ff8a1f',
+      ua: '#12b6ff', uaMod: '#5a6376', gen: '#ff8a1f', mark: '#e9eef7',
+      grid: '#161c27', ideal: '#333d4d', train: '#5a6376',
+      epsFrom: '#8a5f10', dtFrom: '#8a3a18', uaFrom: '#0a4a6b', healthFrom: '#14653f', critFrom: '#7a1c16',
+      resAir: '#12b6ff', resWall: '#5a6376', resCool: '#ff8a1f',
+      zoneCold: '#123246', zoneOk: '#123f2e', zoneWarn: '#3e3216', zoneCrit: '#45191a',
+      bandWarn: 'rgba(255,176,32,.10)',
+      crCurve: ['#12b6ff', '#2fe08a', '#ffb020', '#ff8a1f', '#ff3b30']
+    }
   };
+  var COL = {};
+  function syncPalette() {
+    var mode = document.documentElement.dataset.mode === 'speed' ? 'speed' : 'work';
+    var src = PALETTES[mode];
+    Object.keys(src).forEach(function (k) { COL[k] = src[k]; });
+    return COL;
+  }
+  syncPalette();
 
   var S = {
     params: T.defaults(),
@@ -133,14 +171,24 @@
   /* ============================================================
      Abas
      ============================================================ */
+  var shuttle = null;
+
   function setTab(name) {
+    /* as abas exclusivas do speed mode nao existem no modo de
+       trabalho: cair numa delas depois de sair volta ao painel  */
+    var btn = $('nav.tabs button[data-tab="' + name + '"]');
+    if (!btn || (btn.classList.contains('speed-only') && document.documentElement.dataset.mode !== 'speed')) {
+      name = 'painel';
+    }
     $$('nav.tabs button').forEach(function (b) {
       b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
     });
     $$('section.tab').forEach(function (s) { s.hidden = s.id !== 'tab-' + name; });
     U.store.set('tab', name);
+    if (shuttle) shuttle.sync();
+    if (ATC.Audio) ATC.Audio.play('tick');
     setTimeout(G.redrawAll, 30);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.scrollY > 4) window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   /* ============================================================
@@ -350,15 +398,19 @@
         ? 'Carregado: ' + (S.meta ? S.meta.name : 'coleta') + ' — ' + S.proc.rows.length + ' amostras'
         : 'Nenhuma coleta carregada.';
     }
-    var n = $('#dsName'), b = $('#modeBadge');
+    var n = $('#dsName'), b = $('#modeBadge'), isl = $('#island');
     if (n) n.textContent = S.meta ? S.meta.name : 'Nenhuma coleta carregada';
     if (b) {
-      if (!S.proc) { b.textContent = 'Modo —'; b.className = 'badge'; }
-      else if (S.proc.mode === 'exp') { b.textContent = 'Modo experimental · ΔT medido'; b.className = 'badge ok'; }
-      else { b.textContent = 'Modo modelo · ΔT estimado'; b.className = 'badge warn'; }
+      if (!S.proc) b.textContent = 'sem dados';
+      else if (S.proc.mode === 'exp') b.textContent = S.proc.rows.length + ' amostras · ΔT medido';
+      else b.textContent = S.proc.rows.length + ' amostras · ΔT estimado';
     }
-    var dsb = $('#dsBadge');
-    if (dsb) dsb.className = 'badge ' + (S.meta && S.meta.demo ? 'warn' : (S.meta ? 'info' : 'info'));
+    if (isl) {
+      isl.className = 'island' + (S.proc ? (S.meta && S.meta.demo ? ' demo' : ' live') : '');
+      isl.title = S.proc
+        ? (S.proc.mode === 'exp' ? 'Modo experimental — o ΔT vem dos sensores' : 'Modo modelo — o ΔT é estimado pelas correlações')
+        : 'Nenhuma coleta carregada';
+    }
   }
 
   /* ============================================================
@@ -413,7 +465,7 @@
       tipTitle: function (x) { return 'tempo ' + U.mmss(x); },
       cursorX: rows[S.cursor] ? rows[S.cursor].t : undefined,
       yBands: [
-        { y0: p.tWarn, y1: p.tCrit, color: 'rgba(255,176,46,.07)' },
+        { y0: p.tWarn, y1: p.tCrit, color: COL.bandWarn },
         { y0: p.tCrit, y1: 200, color: 'rgba(255,59,48,.10)' }
       ],
       hlines: [
@@ -427,7 +479,7 @@
 
     /* ---- calor e efetividade ---- */
     var sQ = [
-      { name: 'Calor rejeitado Q̇', color: COL.q, width: 1.8, axis: 'l', area: 'rgba(53,200,232,.20)',
+      { name: 'Calor rejeitado Q̇', color: COL.q, width: 1.8, axis: 'l', area: COL.qArea,
         data: rows.map(function (d) { return [d.t, d.q / 1000]; }),
         tipFmt: function (v) { return U.br(v, 1) + ' kW'; } },
       { name: 'Efetividade ε', color: COL.eps, width: 1.6, axis: 'r',
@@ -499,7 +551,7 @@
             ? 'background:' + s.color + ';height:7px;width:7px;border-radius:50%'
             : 'background:' + s.color);
       return '<span><i style="' + sw + '"></i>' +
-             '<span style="color:var(--txt-2)">' + U.esc(s.name) + '</span></span>';
+             '<span style="color:var(--ink-2)">' + U.esc(s.name) + '</span></span>';
     }).join('');
   }
 
@@ -607,7 +659,7 @@
       ];
       tb.innerHTML = '<thead><tr><th>Grandeza</th><th class="num">Valor</th><th>Origem / observação</th></tr></thead><tbody>' +
         items.map(function (r) {
-          return '<tr><td>' + U.esc(r[0]) + '</td><td class="num">' + U.esc(r[1]) + '</td><td style="color:var(--muted)">' + U.esc(r[2]) + '</td></tr>';
+          return '<tr><td>' + U.esc(r[0]) + '</td><td class="num">' + U.esc(r[1]) + '</td><td style="color:var(--ink-4)">' + U.esc(r[2]) + '</td></tr>';
         }).join('') + '</tbody>';
     }
     renderGauges();
@@ -633,13 +685,13 @@
       height: 186, value: d.tHotIn, min: 20, max: 120, unit: '°C do líquido', dec: 1,
       label: 'TEMPERATURA DO LÍQUIDO',
       color: d.tHotIn >= p.tCrit ? COL.crit : d.tHotIn >= p.tWarn ? COL.warn : COL.cold,
-      zones: [{ to: p.tStatOpen, color: '#22384d' }, { to: p.tWarn, color: '#1b5f45' },
-              { to: p.tCrit, color: '#6e5119' }, { to: 120, color: '#7d2723' }]
+      zones: [{ to: p.tStatOpen, color: COL.zoneCold }, { to: p.tWarn, color: COL.zoneOk },
+              { to: p.tCrit, color: COL.zoneWarn }, { to: 120, color: COL.zoneCrit }]
     });
     G.gauge($('#gaugeEps'), {
       height: 186, value: d.warmup ? NaN : d.eps, min: 0, max: 1, unit: 'efetividade ε', dec: 3, decScale: 1,
       label: 'EFETIVIDADE DO RADIADOR', color: COL.eps,
-      zones: [{ to: 0.4, color: '#3a3320' }, { to: 0.7, color: '#1b5f45' }, { to: 1, color: '#22384d' }]
+      zones: [{ to: 0.4, color: COL.zoneWarn }, { to: 0.7, color: COL.zoneOk }, { to: 1, color: COL.zoneCold }]
     });
     var calH = !!S.params.uaCalibrated;
     var hv = d.healthValid ? d.healthSmooth : NaN;
@@ -647,7 +699,7 @@
       height: 186, value: isFinite(hv) ? hv * 100 : NaN, min: 0, max: 120, unit: '% do previsto', dec: 0,
       label: !d.healthValid ? 'SAÚDE — FORA DA FAIXA' : (calH ? 'SAÚDE DO RADIADOR' : 'SAÚDE — SEM LINHA DE BASE'),
       color: !isFinite(hv) || !calH ? COL.amb : hv >= 0.9 ? COL.ok : hv >= 0.8 ? COL.warn : COL.crit,
-      zones: [{ to: 80, color: '#7d2723' }, { to: 90, color: '#6e5119' }, { to: 120, color: '#1b5f45' }]
+      zones: [{ to: 80, color: COL.zoneCrit }, { to: 90, color: COL.zoneWarn }, { to: 120, color: COL.zoneOk }]
     });
   }
 
@@ -764,7 +816,7 @@
             '<td class="num">' + U.br(r.vFace, 2) + '</td>' +
             '<td class="num">' + U.br(r.fanPct, 0) + ' %</td></tr>';
         }).join('') +
-        '<tr style="background:rgba(53,200,232,.06)"><td><b>Sessão útil</b></td>' +
+        '<tr class="sum-row"><td><b>Sessão útil</b></td>' +
         '<td class="num">' + U.br(s.nUseful, 0) + '</td><td class="num">' + U.br(s.ectMeanUseful, 1) + '</td>' +
         '<td class="num">' + U.br(s.dtMean, 1) + '</td><td class="num">' + U.br(s.qMean / 1000, 1) + '</td>' +
         '<td class="num"><b>' + U.br(s.epsMean, 3) + '</b></td><td class="num">' + U.br(s.ntuMean, 2) + '</td>' +
@@ -795,11 +847,11 @@
     var curves = [0, 0.25, 0.5, 0.75, 1].map(function (cr, i) {
       var data = [];
       for (var n = 0.02; n <= 5; n += 0.02) data.push([n, T.epsCrossflow(n, cr)]);
-      var cols = ['#35c8e8', '#2fdd8e', '#ffb02e', '#ff9f43', '#ff6b4a'];
+      var cols = COL.crCurve;
       return { name: 'C_r = ' + U.br(cr, 2), color: cols[i], width: 1.4, data: data,
                tipFmt: function (v) { return U.br(v, 3); } };
     });
-    curves.push({ name: 'pontos medidos', color: '#9b8cff', type: 'scatter', r: 2.2, alpha: 0.5,
+    curves.push({ name: 'pontos medidos', color: COL.pred, type: 'scatter', r: 2.2, alpha: 0.5,
       data: useful.map(function (d) { return [d.ntu, d.eps]; }),
       tipFmt: function (v) { return U.br(v, 3); } });
     var ntuHi = Math.max(1.2, Math.min(5, (capMax(useful.map(function (d) { return d.ntu; }), 0.98) || 2) * 1.25));
@@ -849,7 +901,7 @@
       height: 250, series: sBal, xFmt: U.mmss,
       yMax: capMax(qGenS.map(function (v) { return v / 1000; }), 0.99),
       xLabel: 'tempo (mm:ss)', yLabel: 'potência térmica (kW)',
-      hlines: [{ y: 0, color: '#3d5570', dash: false }],
+      hlines: [{ y: 0, color: COL.ideal, dash: false }],
       tipTitle: function (x) { return 'tempo ' + U.mmss(x); }
     });
     legend('#legBal', sBal);
@@ -979,7 +1031,7 @@
       height: 300, series: sPred, xFmt: U.mmss,
       xLabel: 'tempo (mm:ss)', yLabel: 'temperatura (°C)',
       tipTitle: function (x) { return 'tempo ' + U.mmss(x); },
-      marks: fit.splitTime ? [{ x: fit.splitTime + fit.horizon, color: '#9b8cff' }] : [],
+      marks: fit.splitTime ? [{ x: fit.splitTime + fit.horizon, color: COL.pred }] : [],
       hlines: [{ y: S.params.tCrit, color: COL.crit, label: 'crítico' }]
     });
     legend('#legPred', sPred);
@@ -991,8 +1043,8 @@
       height: 300, xMin: lo - 1, xMax: hi + 1, yMin: lo - 1, yMax: hi + 1,
       xLabel: 'temperatura medida (°C)', yLabel: 'temperatura prevista (°C)',
       series: [
-        { name: 'ideal', color: '#3d5570', width: 1.4, data: [[lo - 1, lo - 1], [hi + 1, hi + 1]], noTip: true },
-        { name: 'treino', color: '#4a6b8a', type: 'scatter', r: 1.9, alpha: 0.35,
+        { name: 'ideal', color: COL.ideal, width: 1.4, data: [[lo - 1, lo - 1], [hi + 1, hi + 1]], noTip: true },
+        { name: 'treino', color: COL.train, type: 'scatter', r: 1.9, alpha: 0.35,
           data: fit.series.filter(function (s) { return !s.isTest; }).map(function (s) { return [s.real, s.pred]; }),
           tipFmt: function (x) { return U.br(x, 1) + ' °C'; } },
         { name: 'holdout', color: COL.pred, type: 'scatter', r: 2.2, alpha: 0.7,
@@ -1008,11 +1060,11 @@
         height: Math.max(150, fit.cv.results.length * 30 + 24), labelWidth: 74,
         items: fit.cv.results.map(function (r) {
           return { label: 'λ = ' + U.br(r.lambda, 0), value: r.mae,
-                   color: r.lambda === fit.lambda ? COL.ok : '#2f628a' };
+                   color: r.lambda === fit.lambda ? COL.ok : COL.uaMod };
         }),
         fmt: function (v) { return U.br(v, 2) + ' °C'; }
       });
-      $('#legLambda').innerHTML = '<span style="color:var(--muted)">MAE médio dos blocos · em verde o λ escolhido · linha de base: <b>' +
+      $('#legLambda').innerHTML = '<span style="color:var(--ink-4)">MAE médio dos blocos · em verde o λ escolhido · linha de base: <b>' +
         U.br(fit.test.maeBase, 2) + ' °C</b></span>';
     }
 
@@ -1044,9 +1096,9 @@
       S.anom.events.map(function (e) {
         var cls = e.sev === 'alta' ? 'crit' : e.sev === 'media' ? 'warn' : '';
         return '<tr><td>' + U.mmss(e.t0) + '</td><td class="num">' + U.mmss(e.dur) + '</td>' +
-          '<td>' + U.esc(e.desc) + '<br><span style="color:var(--muted);font-size:11.5px">' + U.esc(e.regime) + '</span></td>' +
+          '<td>' + U.esc(e.desc) + '<br><span style="color:var(--ink-4);font-size:11.5px">' + U.esc(e.regime) + '</span></td>' +
           '<td class="num">' + (isFinite(e.health) ? U.br(e.health * 100, 0) + ' %' : '—') + '</td>' +
-          '<td class="num">' + U.br(e.eps, 3) + ' <span style="color:var(--muted)">(prev. ' + U.br(e.epsModel, 3) + ')</span></td>' +
+          '<td class="num">' + U.br(e.eps, 3) + ' <span style="color:var(--ink-4)">(prev. ' + U.br(e.epsModel, 3) + ')</span></td>' +
           '<td><span class="badge ' + cls + '">' + U.esc(e.sev) + '</span></td></tr>';
       }).join('') + '</tbody>';
   }
@@ -1108,7 +1160,7 @@
       height: 300, series: sA, xFmt: U.mmss,
       xLabel: 'tempo (mm:ss)', yLabel: 'temperatura (°C)',
       tipTitle: function (x) { return 'tempo ' + U.mmss(x); },
-      yBands: [{ y0: p.tWarn, y1: p.tCrit, color: 'rgba(255,176,46,.07)' },
+      yBands: [{ y0: p.tWarn, y1: p.tCrit, color: COL.bandWarn },
                { y0: p.tCrit, y1: 200, color: 'rgba(255,59,48,.10)' }],
       hlines: [{ y: p.tWarn, color: COL.warn, label: 'atenção' }, { y: p.tCrit, color: COL.crit, label: 'crítico' }],
       marks: a.list.filter(function (x) { return x.kind === 'pred-crit'; }).map(function (x) { return { x: x.t, color: COL.pred }; })
@@ -1137,7 +1189,7 @@
             '<td><span class="badge ' + k[1] + '"><span class="dot"></span>' + U.esc(k[0]) + '</span></td>' +
             '<td class="num">' + U.br(x.ect, 1) + '</td>' +
             '<td class="num">' + (isFinite(x.pred) ? U.br(x.pred, 1) : '—') + '</td>' +
-            '<td style="color:var(--muted)">' + (lead !== null ? 'antecedência de ' + U.mmss(lead)
+            '<td style="color:var(--ink-4)">' + (lead !== null ? 'antecedência de ' + U.mmss(lead)
               : (x.kind === 'pred-crit' ? 'previsão para ' + U.mmss(x.tTarget) : '')) + '</td></tr>';
         }).join('') + '</tbody>';
     }
@@ -1158,7 +1210,7 @@
     var h = [];
 
     h.push('<h2 style="font-size:18px">Relatório técnico da campanha de coleta</h2>');
-    h.push('<p style="color:var(--muted);font-size:12.5px">Apex Thermal Control · gerado em ' +
+    h.push('<p style="color:var(--ink-4);font-size:12.5px">Apex Thermal Control · gerado em ' +
       now.toLocaleDateString('pt-BR') + ' às ' + now.toLocaleTimeString('pt-BR') + '</p>');
 
     if (S.meta && S.meta.demo) {
@@ -1330,13 +1382,133 @@
   /* ============================================================
      Render geral
      ============================================================ */
+  /* Os valores dos indicadores sobem ate o numero em vez de saltar
+     para ele. Nao e enfeite: a subida mostra a ordem de grandeza da
+     mudanca antes de o olho ler o digito. Como a fonte e tabular, a
+     largura nao muda durante a contagem e nada reflui.             */
+  function animateNumbers(root) {
+    if (!ATC.Motion || !root) return;
+    root.querySelectorAll('.k-val').forEach(function (el) {
+      var raw = el.firstChild && el.firstChild.nodeType === 3 ? el.firstChild.nodeValue : null;
+      if (raw === null) return;
+      var txt = raw.trim();
+      var v = parseFloat(txt.replace(/\./g, '').replace(',', '.'));
+      if (!isFinite(v) || !/^[-−]?[\d.,]+$/.test(txt)) return;
+      var dec = (txt.split(',')[1] || '').length;
+      var node = el.firstChild;
+      var sp = ATC.Motion.spring(0, { k: 120, c: 22, eps: Math.pow(10, -dec) / 4 });
+      sp.onStep = function (x) { node.nodeValue = U.br(x, dec); };
+      sp.set(0); node.nodeValue = U.br(0, dec);
+      sp.to(v);
+    });
+  }
+
   function renderAll() {
     renderHeader();
     renderPainel();
     renderAnalise();
     renderIa();
     renderAlerts();
+    if (ATC.Explain) ATC.Explain.render(S, G, COL);
+    if (ATC.Speed) ATC.Speed.refresh();
+    animateNumbers($('#kpiRow'));
     setTimeout(G.redrawAll, 30);
+  }
+
+  /* ============================================================
+     Superficie publica do aplicativo
+     ------------------------------------------------------------
+     Os modulos de apresentacao (explicacao, speed mode, paleta de
+     comandos) leem o estado por aqui em vez de alcançar variaveis
+     internas. Assim ha um so lugar por onde eles entram.
+     ============================================================ */
+  var API = {
+    state: function () { return S; },
+    colors: function () { return COL; },
+    legend: legend,
+    setTab: setTab,
+    render: renderAll,
+    recompute: function () { recompute(); S.fit = null; S.alerts = null; renderAll(); },
+    loadDemo: loadDemo,
+    /* chamada pelo speed mode quando a pele troca: paleta, tema dos
+       graficos e um redesenho completo                             */
+    modeChanged: function () {
+      syncPalette();
+      G.syncTheme();
+      var cur = U.store.get('tab', 'painel');
+      setTab(cur);
+      renderAll();
+    }
+  };
+  ATC.App = API;
+
+  /* ============================================================
+     Comandos da paleta
+     ------------------------------------------------------------
+     Cada acao da interface aparece aqui com o mesmo nome que tem
+     na tela. A lista e a unica fonte: se um botao existe e nao
+     esta nesta lista, ele nao e alcancavel pelo teclado — e isso
+     conta como defeito.
+     ============================================================ */
+  function registerCommands() {
+    var temColeta = function () { return !!S.proc; };
+    var TABS = [
+      ['painel', 'Painel', '◧'], ['entenda', 'Entenda o cálculo', '◎'],
+      ['importar', 'Importar dados', '↧'], ['analise', 'Análise térmica', '∑'],
+      ['ia', 'Previsão', '◈'], ['alertas', 'Alertas', '!'],
+      ['relatorio', 'Relatório', '▤'], ['projeto', 'Projeto', '⬡']
+    ];
+    var list = TABS.map(function (t) {
+      return { group: 'Ir para', icon: t[2], label: t[1], keys: t[0], run: function () { setTab(t[0]); } };
+    });
+
+    var SPEED_TABS = [['cluster', 'Cluster', '◉'], ['ecu', 'ECU', '▣'], ['dyno', 'Dyno', '◭']];
+    SPEED_TABS.forEach(function (t) {
+      list.push({
+        group: 'Speed mode', icon: t[2], label: 'Ir para ' + t[1], keys: t[0],
+        when: function () { return document.documentElement.dataset.mode === 'speed'; },
+        run: function () { setTab(t[0]); }
+      });
+    });
+
+    D.datasets.forEach(function (d) {
+      list.push({
+        group: 'Dados', icon: '⟐', label: 'Carregar ' + d.name, keys: 'demo demonstracao',
+        run: function () { loadDemo(d.id); setTab('painel'); }
+      });
+    });
+    list.push({ group: 'Dados', icon: '↧', label: 'Baixar a coleta de demonstração em CSV', keys: 'download csv',
+      run: function () { downloadDemo($('#demoSelect').value); } });
+    list.push({ group: 'Dados', icon: '⌫', label: 'Descartar a coleta carregada', keys: 'limpar',
+      when: temColeta, run: function () { $('#btnClearData').click(); } });
+
+    list.push({ group: 'Análise', icon: '⊚', label: 'Calibrar pelos dados desta coleta', keys: 'calibrar ua',
+      when: temColeta, run: function () { setTab('analise'); doCalibrate(); } });
+    list.push({ group: 'Análise', icon: '↻', label: 'Recalcular com os parâmetros atuais', keys: 'recalcular',
+      when: temColeta, run: function () { API.recompute(); } });
+    list.push({ group: 'Análise', icon: '⌂', label: 'Restaurar os parâmetros padrão', keys: 'reset padroes',
+      run: function () { $('#btnResetParams').click(); } });
+
+    list.push({ group: 'Previsão', icon: '◈', label: 'Treinar o modelo de previsão', keys: 'treinar ia modelo',
+      when: temColeta, run: function () { setTab('ia'); trainModel(); } });
+    list.push({ group: 'Previsão', icon: '!', label: 'Reavaliar os alertas preditivos', keys: 'alertas',
+      when: function () { return !!(S.fit && S.fit.ok); }, run: function () { setTab('alertas'); $('#btnAlerts').click(); } });
+
+    list.push({ group: 'Saída', icon: '▤', label: 'Gerar o relatório técnico', keys: 'relatorio',
+      when: temColeta, run: function () { setTab('relatorio'); buildReport(); } });
+    list.push({ group: 'Saída', icon: '⎙', label: 'Imprimir ou salvar em PDF', keys: 'print pdf imprimir',
+      when: temColeta, run: function () { $('#btnPrint').click(); } });
+    list.push({ group: 'Saída', icon: '⇩', label: 'Exportar a série processada em CSV', keys: 'csv exportar',
+      when: temColeta, run: function () { $('#btnExportCsv').click(); } });
+    list.push({ group: 'Saída', icon: '{}', label: 'Exportar o resumo em JSON', keys: 'json exportar',
+      when: temColeta, run: function () { exportJson(); } });
+
+    list.push({ group: 'Interface', icon: '◐', label: 'Alternar o speed mode', keys: 'speed modo tema',
+      hint: 'easter egg', run: function () { if (ATC.Speed) ATC.Speed.toggle(); } });
+    list.push({ group: 'Interface', icon: '♪', label: 'Ligar ou desligar o som da interface', keys: 'som audio',
+      run: function () { var b = $('#btnSound'); if (b) b.click(); } });
+
+    ATC.Cmd.register(list);
   }
 
   /* ============================================================
@@ -1354,13 +1526,42 @@
     renderParamForm();
     syncParamInputs();
 
-    /* abas */
+    /* abas, com o cursor deslizante governado por mola */
+    var nav = $('nav.tabs');
+    if (ATC.Motion && nav) shuttle = ATC.Motion.shuttle(nav);
     $$('nav.tabs button').forEach(function (b) {
       b.addEventListener('click', function () { setTab(b.dataset.tab); });
     });
     $$('[data-goto]').forEach(function (b) {
       b.addEventListener('click', function () { setTab(b.dataset.goto); });
     });
+
+    /* som da interface: comeca desligado e fica lembrado */
+    var snd = $('#btnSound');
+    if (snd && ATC.Audio) {
+      var paint = function () {
+        var on = ATC.Audio.enabled();
+        snd.setAttribute('aria-pressed', String(on));
+        snd.classList.toggle('on', on);
+        snd.title = 'Som da interface — ' + (on ? 'ligado' : 'desligado');
+      };
+      paint();
+      snd.addEventListener('click', function () { ATC.Audio.toggle(); paint(); });
+    }
+
+    /* paleta de comandos */
+    if (ATC.Cmd) {
+      registerCommands();
+      var bc = $('#btnCmd');
+      if (bc) bc.addEventListener('click', function () { ATC.Cmd.open(); });
+      var mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+      var kk = $('#cmdKey');
+      if (kk && mac) kk.textContent = '⌘K';
+    }
+
+    /* speed mode */
+    if (ATC.Speed) ATC.Speed.init(API);
+    G.syncTheme();
 
     /* seletor de demonstracao */
     var sel = $('#demoSelect');
@@ -1375,6 +1576,8 @@
     $('#btnLoadDemo').addEventListener('click', function () { loadDemo(sel.value); setTab('painel'); });
     $('#btnDownloadDemo').addEventListener('click', function () { downloadDemo(sel.value); });
     $('#btnQuickDemo').addEventListener('click', function () { loadDemo(D.datasets[0].id); });
+    var bex = $('#btnExDemo');
+    if (bex) bex.addEventListener('click', function () { loadDemo(D.datasets[0].id); });
 
     /* arquivos */
     $('#fileObd').addEventListener('change', function (e) { handleFile('obd', e.target.files[0]); });

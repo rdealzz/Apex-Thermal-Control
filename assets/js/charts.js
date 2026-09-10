@@ -6,10 +6,29 @@
 
   var U = ATC.U;
   var G = {};
+  /* O tema dos graficos nao e escrito aqui: e lido dos tokens CSS,
+     entao a troca de modo (work / speed) leva os graficos junto sem
+     duplicar paleta em dois lugares.                               */
   var THEME = {
-    grid: '#1b2634', gridStrong: '#243346', axis: '#4a5f78',
-    txt: '#9db0c8', txtStrong: '#dce7f4', bg: '#0b1119'
+    grid: '#eceef3', gridStrong: '#d9dce2', axis: '#c3c8d2',
+    txt: '#697080', txtStrong: '#0d0f14', bg: '#ffffff'
   };
+
+  function readVar(cs, name, fallback) {
+    var v = cs.getPropertyValue(name);
+    return v ? v.trim() : fallback;
+  }
+  function syncTheme() {
+    if (typeof window === 'undefined') return THEME;
+    var cs = getComputedStyle(document.documentElement);
+    THEME.bg = readVar(cs, '--chart-bg', THEME.bg);
+    THEME.grid = readVar(cs, '--chart-grid', THEME.grid);
+    THEME.gridStrong = readVar(cs, '--hair-strong', THEME.gridStrong);
+    THEME.axis = readVar(cs, '--chart-axis', THEME.axis);
+    THEME.txt = readVar(cs, '--chart-ink', THEME.txt);
+    THEME.txtStrong = readVar(cs, '--chart-ink-strong', THEME.txtStrong);
+    return THEME;
+  }
 
   /* ---------- escalas ---------- */
   function niceStep(range, target) {
@@ -411,7 +430,7 @@
         var lab = it.label.length > 22 ? it.label.slice(0, 21) + '…' : it.label;
         ctx.fillText(lab, labW - 8, y + bh / 2);
         var w = Math.abs(it.value) * scale;
-        ctx.fillStyle = it.color || '#35c8e8';
+        ctx.fillStyle = it.color || '#c9ced9';
         var x = it.value < 0 ? zero - w : zero;
         ctx.beginPath();
         if (ctx.roundRect) ctx.roundRect(x, y, Math.max(w, 1.5), bh, 3); else ctx.rect(x, y, Math.max(w, 1.5), bh);
@@ -453,7 +472,7 @@
       var frac = isFinite(val) ? U.clamp((val - min) / (max - min || 1), 0, 1) : 0;
 
       /* trilha por zonas */
-      var zones = c.zones || [{ to: max, color: '#2f4a63' }];
+      var zones = c.zones || [{ to: max, color: '#2a2d38' }];
       var prev = min;
       ctx.lineWidth = R * 0.20; ctx.lineCap = 'butt';
       zones.forEach(function (z) {
@@ -467,13 +486,13 @@
       /* arco de valor */
       if (isFinite(val)) {
         ctx.lineWidth = R * 0.20; ctx.lineCap = 'round';
-        ctx.strokeStyle = c.color || '#35c8e8';
-        ctx.shadowColor = c.color || '#35c8e8'; ctx.shadowBlur = 12;
+        ctx.strokeStyle = c.color || '#e51d34';
+        ctx.shadowColor = c.color || '#e51d34'; ctx.shadowBlur = 12;
         ctx.beginPath(); ctx.arc(cx, cy, R, a0, a0 + (a1 - a0) * frac); ctx.stroke();
         ctx.shadowBlur = 0;
         /* ponteiro */
         var ang = a0 + (a1 - a0) * frac;
-        ctx.strokeStyle = '#e7eef7'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+        ctx.strokeStyle = '#edeff4'; ctx.lineWidth = 2.2; ctx.lineCap = 'round';
         ctx.beginPath();
         ctx.moveTo(cx + Math.cos(ang) * (R - R * 0.16), cy + Math.sin(ang) * (R - R * 0.16));
         ctx.lineTo(cx + Math.cos(ang) * (R + R * 0.15), cy + Math.sin(ang) * (R + R * 0.15));
@@ -495,7 +514,7 @@
       ctx.font = '11.5px system-ui,sans-serif'; ctx.fillStyle = THEME.txt;
       ctx.fillText(c.unit || '', cx, cy + R * 0.30);
       if (c.label) {
-        ctx.font = '600 11px system-ui,sans-serif'; ctx.fillStyle = '#9db0c8';
+        ctx.font = '600 11px system-ui,sans-serif'; ctx.fillStyle = '#98a0b0';
         ctx.textBaseline = 'top'; ctx.fillText(c.label, cx, 4);
       }
     }
@@ -503,6 +522,169 @@
     return { draw: draw };
   };
 
+  /* ============================================================
+     Barra de proporcao: quanto do maximo possivel foi alcancado.
+     Le-se sem eixo nem escala — e a leitura visual de uma razao
+     como a efetividade (Q rejeitado / Q maximo).
+     ============================================================ */
+  G.ratio = function (canvas, cfg) {
+    canvas.__atcCfg = cfg;
+    function draw() {
+      var c = canvas.__atcCfg;
+      var H = c.height || 96;
+      var f = fit(canvas, H), ctx = f.ctx, W = f.w;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = THEME.bg; ctx.fillRect(0, 0, W, H);
+
+      var padX = 16, barY = 34, barH = c.barH || 30;
+      var pw = Math.max(W - padX * 2, 20);
+      var frac = isFinite(c.value) && c.max > 0 ? U.clamp(c.value / c.max, 0, 1) : 0;
+
+      /* rotulos de topo */
+      ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+      ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = THEME.txt;
+      ctx.fillText(c.label || '', padX, 18);
+      if (c.right) {
+        ctx.textAlign = 'right'; ctx.fillStyle = THEME.txtStrong;
+        ctx.font = '600 13px ui-monospace,monospace';
+        ctx.fillText(c.right, W - padX, 18);
+      }
+
+      /* trilho = o total possivel */
+      ctx.fillStyle = THEME.grid;
+      ctx.strokeStyle = THEME.gridStrong; ctx.lineWidth = 1;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(padX, barY, pw, barH, 7); else ctx.rect(padX, barY, pw, barH);
+      ctx.fill(); ctx.stroke();
+
+      /* preenchimento = o que de fato aconteceu */
+      var fw = Math.max(pw * frac, frac > 0 ? 3 : 0);
+      if (fw > 0) {
+        var g = ctx.createLinearGradient(padX, 0, padX + pw, 0);
+        g.addColorStop(0, c.colorFrom || '#7a0f22');
+        g.addColorStop(1, c.colorTo || '#e51d34');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(padX, barY, fw, barH, 7); else ctx.rect(padX, barY, fw, barH);
+        ctx.fill();
+      }
+
+      /* faixa de referencia opcional (ex.: 0,40 a 0,70 de efetividade) */
+      if (c.band) {
+        var b0 = padX + pw * U.clamp(c.band[0] / c.max, 0, 1);
+        var b1 = padX + pw * U.clamp(c.band[1] / c.max, 0, 1);
+        ctx.save();
+        ctx.globalAlpha = 0.13;
+        ctx.fillStyle = THEME.txt;
+        ctx.fillRect(b0, barY, Math.max(b1 - b0, 1), barH);
+        ctx.restore();
+        ctx.strokeStyle = THEME.axis;
+        ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+        [b0, b1].forEach(function (x) {
+          ctx.beginPath(); ctx.moveTo(x + .5, barY - 4); ctx.lineTo(x + .5, barY + barH + 4); ctx.stroke();
+        });
+        ctx.setLineDash([]);
+        if (c.bandLabel) {
+          ctx.font = '10.5px system-ui,sans-serif'; ctx.fillStyle = THEME.txt;
+          ctx.textAlign = 'center';
+          ctx.fillText(c.bandLabel, (b0 + b1) / 2, barY + barH + 16);
+        }
+      }
+
+      /* valor sobre a barra */
+      ctx.font = '700 14px ui-monospace,monospace';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      var txt = c.valueText || U.br(c.value, 2);
+      var tw = ctx.measureText(txt).width;
+      var inside = fw > tw + 20;
+      ctx.fillStyle = inside ? '#fff' : THEME.txtStrong;
+      if (inside) { ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.35)'; ctx.shadowBlur = 3; }
+      ctx.fillText(txt, inside ? padX + fw - tw - 10 : padX + fw + 10, barY + barH / 2 + 1);
+      if (inside) ctx.restore();
+
+      /* rodape */
+      if (c.foot) {
+        ctx.font = '11.5px system-ui,sans-serif'; ctx.fillStyle = THEME.txt;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(c.foot, padX, H - 8);
+      }
+    }
+    register(canvas, draw); draw();
+    return { draw: draw };
+  };
+
+  /* ============================================================
+     Barra empilhada 100%: mostra a repartição de um total, com o
+     rotulo dentro de cada fatia que couber. Usada para as
+     resistencias termicas em serie.
+     ============================================================ */
+  G.stack = function (canvas, cfg) {
+    canvas.__atcCfg = cfg;
+    function draw() {
+      var c = canvas.__atcCfg;
+      var parts = (c.parts || []).filter(function (p) { return isFinite(p.value) && p.value > 0; });
+      var H = c.height || 108;
+      var f = fit(canvas, H), ctx = f.ctx, W = f.w;
+      ctx.clearRect(0, 0, W, H);
+      ctx.fillStyle = THEME.bg; ctx.fillRect(0, 0, W, H);
+      if (!parts.length) {
+        ctx.fillStyle = THEME.txt; ctx.font = '13px system-ui,sans-serif'; ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(c.emptyMsg || 'Sem dados', W / 2, H / 2); return;
+      }
+      var total = parts.reduce(function (a, p) { return a + p.value; }, 0);
+      var padX = 16, barY = c.title ? 30 : 14, barH = c.barH || 34;
+      var pw = Math.max(W - padX * 2, 20);
+
+      if (c.title) {
+        ctx.font = '600 12px system-ui,sans-serif'; ctx.fillStyle = THEME.txt;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+        ctx.fillText(c.title, padX, 18);
+      }
+
+      var x = padX;
+      parts.forEach(function (p, i) {
+        var w = pw * (p.value / total);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        var r0 = i === 0 ? 7 : 0, r1 = i === parts.length - 1 ? 7 : 0;
+        if (ctx.roundRect) ctx.roundRect(x, barY, Math.max(w, 1), barH, [r0, r1, r1, r0]);
+        else ctx.rect(x, barY, Math.max(w, 1), barH);
+        ctx.fill();
+        var pct = 100 * p.value / total;
+        var lab = U.br(pct, 0) + ' %';
+        ctx.font = '700 12.5px ui-monospace,monospace';
+        if (ctx.measureText(lab).width + 12 < w) {
+          ctx.fillStyle = p.dark ? THEME.txtStrong : '#fff';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(lab, x + w / 2, barY + barH / 2 + 1);
+        }
+        x += w;
+      });
+
+      /* legenda embaixo, na ordem das fatias */
+      var ly = barY + barH + 20, lx = padX;
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+      parts.forEach(function (p) {
+        var lab = p.label + '  ' + U.br(100 * p.value / total, 0) + ' %';
+        ctx.font = '11.5px system-ui,sans-serif';
+        var w = ctx.measureText(lab).width + 22;
+        if (lx + w > W - padX && lx > padX) { lx = padX; ly += 17; }
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(lx, ly - 4, 10, 8, 2); else ctx.rect(lx, ly - 4, 10, 8);
+        ctx.fill();
+        ctx.fillStyle = THEME.txt;
+        ctx.fillText(lab, lx + 15, ly);
+        lx += w;
+      });
+    }
+    register(canvas, draw); draw();
+    return { draw: draw };
+  };
+
   G.theme = THEME;
+  G.syncTheme = function () { var t = syncTheme(); G.redrawAll(); return t; };
+  G.readTheme = syncTheme;
   ATC.Charts = G;
 })(typeof window !== 'undefined' ? (window.ATC = window.ATC || {}) : (globalThis.ATC = globalThis.ATC || {}));
