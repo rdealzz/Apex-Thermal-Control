@@ -145,8 +145,13 @@
 /* ============================================================
    4. CLUSTER
    ============================================================ */
-.cluster-wrap{position:relative}
-.cluster-wrap canvas{width:100%;display:block}
+/* O cluster redesenha a 60 Hz. Sem camada propria, cada repintura
+   dele suja os vizinhos e o navegador re-rasteriza o cartao inteiro —
+   medido, o grafico de telemetria ao lado custava 10 quadros por
+   segundo sem nunca ser redesenhado. Promover o canvas e conter a
+   pintura no bloco resolve na origem.                              */
+.cluster-wrap{position:relative;contain:paint}
+.cluster-wrap canvas{width:100%;display:block;will-change:transform}
 
 /* fita de LEDs de troca de marcha */
 .shift-strip{display:flex;gap:5px;justify-content:center;margin-bottom:14px}

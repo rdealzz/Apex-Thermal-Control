@@ -18,7 +18,7 @@
   var U = ATC.U, M = ATC.Motion, A = ATC.Audio;
   var app = null;                 /* preenchido por app.js */
   var stopFrame = null;           /* encerra o laco do cluster */
-  var play = { on: false, i: 0, t: 0 };
+  var play = { on: false, i: 0, t: 0, pos: -1, cellT: 0 };
   var nitro = { charge: 0, ready: false };
   var dyno = { running: false };
 
@@ -278,7 +278,7 @@
   /* A largura do canvas so muda quando a janela muda. Ler clientWidth
      todo quadro forcaria o navegador a recalcular layout 60 vezes por
      segundo — o jeito classico de perder quadros sem perceber.      */
-  var geo = { w: 0, h: 0, ctx: null, face: null, dials: null, dirty: true };
+  var geo = { w: 0, h: 0, ctx: null, face: null, dials: null, dirty: true, sig: null };
   window.addEventListener('resize', function () { geo.dirty = true; }, { passive: true });
   SP.invalidate = function () { geo.dirty = true; };
 
@@ -317,7 +317,7 @@
     var host = cv.parentNode;
     var w = host.clientWidth || 800;
     var h = Math.round(U.clamp(w * 0.40, 260, 400));
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.75);
+    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
     cv.style.height = h + 'px';
     geo.ctx = cv.getContext('2d');
@@ -339,6 +339,16 @@
     var cv = $('#spdCluster');
     if (!cv) return;
     if (geo.dirty || !geo.ctx) rebuild(cv);
+    /* Se os ponteiros ja assentaram e a amostra e a mesma, o desenho
+       sairia identico ao que ja esta na tela. Redesenhar assim mesmo
+       obriga o navegador a rasterizar um canvas de mais de um milhao
+       de pixels por quadro para nada.                               */
+    var sig = (dial.rpm ? dial.rpm.x : 0).toFixed(1) + '|' +
+              (dial.spd ? dial.spd.x : 0).toFixed(2) + '|' +
+              (dial.temp ? dial.temp.x : 0).toFixed(2);
+    if (sig === geo.sig) return;
+    geo.sig = sig;
+
     var ctx = geo.ctx, w = geo.w, h = geo.h;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(geo.face, 0, 0, w, h);
@@ -538,8 +548,14 @@
       var dtRow = rows.length > 1 ? (rows[1].t - rows[0].t) : 1;
       while (play.t > dtRow && play.i < rows.length - 1) { play.t -= dtRow; play.i++; }
       if (play.i >= rows.length - 1) { play.on = false; $('#btnSpdPlay').textContent = '▶ Rodar telemetria'; }
-      var sc = $('#spdScrub');
-      if (sc) sc.value = Math.round(1000 * play.i / Math.max(rows.length - 1, 1)) / 10;
+      /* escrever num input range recalcula o estilo do widget; so vale
+         a pena quando a posicao muda de fato                        */
+      var pos = Math.round(1000 * play.i / Math.max(rows.length - 1, 1)) / 10;
+      if (pos !== play.pos) {
+        play.pos = pos;
+        var sc = $('#spdScrub');
+        if (sc) sc.value = pos;
+      }
     }
 
     var d = sampleNow();
@@ -558,7 +574,11 @@
 
     drawCluster();
     paintLeds(dial.rpm ? dial.rpm.x : 0);
-    paintCells(d);
+    /* as leituras digitais andam a 12 Hz. Um numero que troca sessenta
+       vezes por segundo nao e lido por ninguem, e cada troca custa uma
+       escrita no DOM.                                               */
+    play.cellT += dt;
+    if (play.cellT >= 1 / 12) { play.cellT = 0; paintCells(d); }
 
     var tt = $('#spdTime'), tc = $('#teleClock');
     var total = rows[rows.length - 1].t - rows[0].t;
