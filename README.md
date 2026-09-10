@@ -55,11 +55,33 @@ abre três telas exclusivas:
 
 | Tela | O que mostra |
 | --- | --- |
-| **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, com a telemetria da coleta rodando |
-| **ECU** | Sete telas de central eletrônica — Engine, Turbo, Injectors, Logger, Maps, Diagnostics, Telemetry |
-| **Dyno** | Passada de dinamômetro: varre a rotação e traça as curvas de calor rejeitado e UA |
+| **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, mais quatro manômetros — pressão de óleo, de combustível, de turbo e AFR — com a telemetria da coleta rodando |
+| **ECU** | Oito telas de central eletrônica: Engine, Turbo, Injectors, **Tune**, Logger, Maps, Diagnostics, Telemetry |
+| **Dyno** | Passada de dinamômetro com os mapas da aba Tune, e o veredito de quanto tempo o radiador real seguraria aquilo |
 
-Nenhum indicador do speed mode é inventado. O conta-giros mostra a rotação que veio do
+### A bancada de remapeamento
+
+A aba **Tune** é uma tabela rotação × carga que se edita célula a célula — combustível,
+ignição, pressão de turbo e AFR alvo — com a superfície do mapa ao lado e o resultado
+aparecendo na hora. Clique numa célula, ande com as setas, ajuste com + e −. Há quatro
+presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
+
+O que faz valer a brincadeira é o motor de mentira ter os compromissos certos:
+
+- pressão sem combustível na mesma proporção **empobrece a mistura** e derrete pistão;
+- avanço acima do limite que a pressão aguenta **detona**, e a potência despenca;
+- AFR longe de 12,5:1 custa potência.
+
+Os presets são mapas que fecham — 122 cv de fábrica, 204 no Míssil, todos limpos. Quebrar
+é por conta de quem edita, e a tela avisa qual dos dois jeitos você escolheu.
+
+E o dinamômetro fecha o ciclo com a parte séria: calcula o calor que aquele motor jogaria
+no líquido e compara com o que o núcleo entrega a 100 km/h, pelas correlações com o fator
+de calibração da coleta carregada. Depois usa a capacitância concentrada do próprio modelo
+térmico para responder a única pergunta que importa: **por quanto tempo**. Com o mapa de
+fábrica, 31 segundos de pé embaixo até o alarme. Com o Míssil, 6.
+
+Fora a bancada de remapeamento, que é ficção assumida e está marcada como tal em cada tela, nenhum indicador do speed mode é inventado. O conta-giros mostra a rotação que veio do
 PID `010C`, o "boost" é o calor rejeitado pelo radiador, a "pressão de óleo" é o índice de
 saúde do núcleo, o "AFR" é a razão de capacidades C_r e o nitro enche conforme a margem
 que ainda existe até o limite crítico. Cada tela diz, embaixo do número, qual grandeza
@@ -192,6 +214,7 @@ assets/js/model.js         regressão ridge, validação cruzada, anomalias, ale
 assets/js/demo.js          gerador de coletas sintéticas
 assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, superfície 3D
 assets/js/tasks.js         itens pendentes do projeto, marcáveis e guardados no navegador
+assets/js/tune.js          mapas da bancada de remapeamento e o motor de mentira por trás
 assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro
 assets/js/cmdk.js          paleta de comandos (Ctrl+K)
 assets/js/app.js           interface, estado, relatório
