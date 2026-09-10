@@ -89,6 +89,8 @@
   --chart-axis:#c3c8d2;
   --chart-ink:#697080;
   --chart-ink-strong:#0d0f14;
+  --chart-pane:rgba(15,18,26,.035);
+  --chart-mesh:rgba(18,22,30,.30);
 
   /* geometria e tipo */
   --r-xs:6px; --r-sm:9px; --r:13px; --r-lg:18px; --r-xl:26px;
@@ -158,6 +160,8 @@
   --chart-axis:#333d4d;
   --chart-ink:#7b8699;
   --chart-ink-strong:#e9eef7;
+  --chart-pane:rgba(150,190,235,.05);
+  --chart-mesh:rgba(6,10,16,.42);
 }
 
 /* ============================================================

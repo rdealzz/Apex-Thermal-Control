@@ -207,11 +207,23 @@ rotação do motor ao mesmo tempo. Duas variáveis não cabem numa curva — cab
 superfície, e mostrar superfície como superfície poupa a conversa inteira de "imagine
 várias curvas sobrepostas".
 
-O renderizador é próprio, sem biblioteca: projeção, algoritmo do pintor e uma luz
-direcional. Cada quadrilátero é sombreado pela própria inclinação, que é o que faz o
-relevo aparecer — mais do que a cor. Arraste para girar; ao soltar, a superfície sai
-girando por inércia e para sozinha por atrito. Custa **1,05 ms por quadro**, com folga de
-sobra para os 60 fps.
+O renderizador é próprio, sem biblioteca, e monta a figura como um gráfico de artigo:
+
+- **paredes de fundo** com grade, escolhidas pelo giro — sempre as duas que ficam atrás;
+- **eixo vertical** na quina que aparece mais à esquerda, com marcas e escala;
+- **malha** sobre a superfície, que é o que deixa a inclinação legível;
+- **curvas de nível projetadas na base**, que fica um degrau abaixo do vale — sem essa
+  folga elas ficariam debaixo do próprio relevo;
+- **barra de cores** com escala e unidade, ao lado do desenho.
+
+Cada quadrilátero é sombreado pela própria inclinação contra uma luz direcional, que é o
+que faz o relevo aparecer — mais do que a cor. Arraste para girar; ao soltar, a superfície
+sai girando por inércia e para sozinha por atrito. Custa **3,8 ms por quadro** com tudo
+ligado, folga de sobra para os 60 fps.
+
+Em tela estreita a figura se reorganiza sozinha: a barra de cores sai, a escala rareia, o
+título encolhe até caber e o subtítulo só aparece se couber inteiro — meia frase cortada
+não informa nada.
 
 Os seis parâmetros que mais mandam no resultado ficam em controles ao lado. Mexer neles
 deforma a superfície na hora, mas **não encosta na análise**: é uma caixa de areia até

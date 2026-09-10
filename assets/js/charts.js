@@ -11,7 +11,8 @@
      duplicar paleta em dois lugares.                               */
   var THEME = {
     grid: '#eceef3', gridStrong: '#d9dce2', axis: '#c3c8d2',
-    txt: '#697080', txtStrong: '#0d0f14', bg: '#ffffff'
+    txt: '#697080', txtStrong: '#0d0f14', bg: '#ffffff',
+    pane: 'rgba(15,18,26,.035)', mesh: 'rgba(18,22,30,.30)'
   };
 
   function readVar(cs, name, fallback) {
@@ -27,6 +28,8 @@
     THEME.axis = readVar(cs, '--chart-axis', THEME.axis);
     THEME.txt = readVar(cs, '--chart-ink', THEME.txt);
     THEME.txtStrong = readVar(cs, '--chart-ink-strong', THEME.txtStrong);
+    THEME.pane = readVar(cs, '--chart-pane', THEME.pane);
+    THEME.mesh = readVar(cs, '--chart-mesh', THEME.mesh);
     return THEME;
   }
 
@@ -726,32 +729,79 @@
       st = canvas.__surf = {
         yaw: -0.72, el: 0.56,      /* giro e elevacao da camera, em radianos */
         yawV: 0, elV: 0,
-        drag: null, stop: null, size: null
+        drag: null, stop: null
       };
     }
 
     /* Camera: gira a cena em torno do eixo vertical, depois inclina.
        A profundidade sai da mesma conta e serve para ordenar as faces
        da mais distante para a mais proxima.                          */
+    /* A camera olha a cena de frente e de cima. Quanto maior o Y do
+       mundo, mais longe o ponto esta E mais alto ele aparece na tela:
+       as duas coisas tem que concordar, senao a ordenacao por
+       profundidade desenha o fundo por cima da frente e as paredes vao
+       parar do lado errado da caixa.                                  */
     function project(x, y, z, sy_, cy_, se, ce) {
       var xr = x * cy_ - y * sy_;
       var yr = x * sy_ + y * cy_;
-      return {
-        x: xr,
-        y: yr * se - z * ce,
-        d: yr * ce - z * se
-      };
+      return { x: xr, y: -yr * se - z * ce, d: yr * ce - z * se };
+    }
+
+    /* ------------------------------------------------------------
+       Curvas de nivel por marching squares. Cada celula da grade e
+       classificada pelos quatro cantos e devolve os segmentos onde a
+       superficie cruza aquele nivel. Projetadas na base, sao o mapa
+       topografico do relevo: dizem onde ele e ingreme sem depender
+       do angulo em que a superficie esta girada.
+       ------------------------------------------------------------ */
+    function isoSegments(Z, gx, gy, level) {
+      var out = [];
+      var ny = Z.length, nx = Z[0].length;
+      for (var j = 0; j < ny - 1; j++) {
+        for (var i = 0; i < nx - 1; i++) {
+          var v0 = Z[j][i], v1 = Z[j][i + 1], v2 = Z[j + 1][i + 1], v3 = Z[j + 1][i];
+          if (!isFinite(v0) || !isFinite(v1) || !isFinite(v2) || !isFinite(v3)) continue;
+          var idx = (v0 > level ? 1 : 0) | (v1 > level ? 2 : 0) | (v2 > level ? 4 : 0) | (v3 > level ? 8 : 0);
+          if (idx === 0 || idx === 15) continue;
+          var x0 = gx[i], x1 = gx[i + 1], y0 = gy[j], y1 = gy[j + 1];
+          var e = {
+            0: function () { var t = (level - v0) / ((v1 - v0) || 1e-9); return [x0 + t * (x1 - x0), y0]; },
+            1: function () { var t = (level - v1) / ((v2 - v1) || 1e-9); return [x1, y0 + t * (y1 - y0)]; },
+            2: function () { var t = (level - v3) / ((v2 - v3) || 1e-9); return [x0 + t * (x1 - x0), y1]; },
+            3: function () { var t = (level - v0) / ((v3 - v0) || 1e-9); return [x0, y0 + t * (y1 - y0)]; }
+          };
+          var pairs;
+          switch (idx) {
+            case 1: case 14: pairs = [[3, 0]]; break;
+            case 2: case 13: pairs = [[0, 1]]; break;
+            case 3: case 12: pairs = [[3, 1]]; break;
+            case 4: case 11: pairs = [[1, 2]]; break;
+            case 6: case 9:  pairs = [[0, 2]]; break;
+            case 7: case 8:  pairs = [[3, 2]]; break;
+            /* casos ambiguos: a escolha nao muda a leitura do mapa */
+            case 5:  pairs = [[3, 0], [1, 2]]; break;
+            case 10: pairs = [[0, 1], [3, 2]]; break;
+            default: pairs = [];
+          }
+          for (var q = 0; q < pairs.length; q++) out.push([e[pairs[q][0]](), e[pairs[q][1]]()]);
+        }
+      }
+      return out;
     }
 
     function draw() {
       var c = canvas.__atcCfg;
       if (!c) return;
-      var H = c.height || 340;
+      var H = c.height || 380;
+      /* Em tela estreita quem limita o desenho e a largura, e a altura
+         cheia so vira espaco vazio em cima e embaixo do relevo.     */
+      var wGuess = canvas.parentNode ? canvas.parentNode.clientWidth : 600;
+      if (wGuess && wGuess < 620) H = Math.min(H, Math.round(wGuess * 1.02));
       var f = fit(canvas, H), ctx = f.ctx, W = f.w;
       ctx.clearRect(0, 0, W, H);
       ctx.fillStyle = THEME.bg; ctx.fillRect(0, 0, W, H);
 
-      var Z = c.z;                       /* matriz [j][i], j = eixo Y */
+      var Z = c.z;
       if (!Z || !Z.length) {
         ctx.fillStyle = THEME.txt; ctx.font = '13px system-ui,sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -759,88 +809,156 @@
         return;
       }
       var ny = Z.length, nx = Z[0].length;
+      var i, j, k;
+
       var zLo = c.zMin, zHi = c.zMax;
       if (zLo === undefined || zHi === undefined) {
         zLo = Infinity; zHi = -Infinity;
-        for (var j = 0; j < ny; j++) for (var i = 0; i < nx; i++) {
+        for (j = 0; j < ny; j++) for (i = 0; i < nx; i++) {
           var v = Z[j][i];
           if (isFinite(v)) { if (v < zLo) zLo = v; if (v > zHi) zHi = v; }
         }
       }
       if (!isFinite(zLo) || zHi - zLo < 1e-9) { zLo = 0; zHi = 1; }
 
+      var narrow = W < 620;
       var sy_ = Math.sin(st.yaw), cy_ = Math.cos(st.yaw);
       var se = Math.sin(st.el), ce = Math.cos(st.el);
-      var zScale = c.zScale === undefined ? 0.88 : c.zScale;
+      var zTop = c.zScale === undefined ? 0.9 : c.zScale;
+      /* A base fica um degrau abaixo do vale da superficie. Sem essa
+         folga as curvas de nivel projetadas ficam debaixo do proprio
+         relevo e nao se ve nenhuma — que e justamente o que elas tem
+         de melhor a oferecer.                                        */
+      var zFloor = -0.16 * zTop;
 
-      /* posicoes normalizadas: a grade vive em [-1,1] x [-1,1] */
       var gx = new Array(nx), gy = new Array(ny);
       for (i = 0; i < nx; i++) gx[i] = nx > 1 ? (i / (nx - 1)) * 2 - 1 : 0;
       for (j = 0; j < ny; j++) gy[j] = ny > 1 ? (j / (ny - 1)) * 2 - 1 : 0;
-      function zn(j, i) {
-        var v = Z[j][i];
-        return isFinite(v) ? ((v - zLo) / (zHi - zLo)) * zScale : 0;
-      }
+      function norm(v) { return isFinite(v) ? U.clamp((v - zLo) / (zHi - zLo), 0, 1) : 0; }
+      function zn(j2, i2) { return norm(Z[j2][i2]) * zTop; }
 
-      /* projeta a grade inteira uma vez */
+      /* ---------- enquadramento ---------- */
+      var bar = c.colorbar === false || narrow ? 0 : 78;
+      var padL = 14, padR = 14 + bar, padT = c.title ? 40 : 16, padB = 14;
+
       var P = new Array(ny);
       var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      function grow(p) {
+        if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
+        if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
+      }
       for (j = 0; j < ny; j++) {
         P[j] = new Array(nx);
-        for (i = 0; i < nx; i++) {
-          var p = project(gx[i], gy[j], zn(j, i), sy_, cy_, se, ce);
-          P[j][i] = p;
-          if (p.x < minX) minX = p.x; if (p.x > maxX) maxX = p.x;
-          if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y;
-        }
+        for (i = 0; i < nx; i++) { P[j][i] = project(gx[i], gy[j], zn(j, i), sy_, cy_, se, ce); grow(P[j][i]); }
       }
-      var narrow = W < 560;
-      var divs = narrow ? 2 : 4;
-      var stepX = Math.max(1, Math.round((nx - 1) / divs)), stepY = Math.max(1, Math.round((ny - 1) / divs));
-      /* o piso tambem precisa caber no enquadramento, e junto com ele a
-         faixa onde os rotulos dos eixos vao ser escritos             */
-      var floor = [];
-      for (var k = 0; k < 4; k++) {
-        var fx = (k === 0 || k === 3) ? -1 : 1, fy = (k < 2) ? -1 : 1;
-        var q = project(fx, fy, 0, sy_, cy_, se, ce);
-        floor.push(q);
-      }
+      /* a caixa de referencia e a faixa dos rotulos entram no enquadramento */
       var RIM = narrow ? 1.34 : 1.52;
-      for (k = 0; k < 4; k++) {
-        var rx = (k === 0 || k === 3) ? -RIM : RIM, ry = (k < 2) ? -RIM : RIM;
-        var r = project(rx, ry, 0, sy_, cy_, se, ce);
-        if (r.x < minX) minX = r.x; if (r.x > maxX) maxX = r.x;
-        if (r.y < minY) minY = r.y; if (r.y > maxY) maxY = r.y;
+      for (k = 0; k < 8; k++) {
+        var rx = (k & 1) ? RIM : -RIM, ry = (k & 2) ? RIM : -RIM, rz = (k & 4) ? zTop : zFloor;
+        grow(project(rx, ry, rz, sy_, cy_, se, ce));
       }
 
-      var padL = 16, padR = 16, padT = c.zLabel ? 34 : 14, padB = 14;
       var sw = Math.max(W - padL - padR, 20), sh = Math.max(H - padT - padB, 20);
       var scale = Math.min(sw / Math.max(maxX - minX, 1e-6), sh / Math.max(maxY - minY, 1e-6));
       var ox = padL + (sw - (maxX - minX) * scale) / 2 - minX * scale;
       var oy = padT + (sh - (maxY - minY) * scale) / 2 - minY * scale;
       function SX(p) { return ox + p.x * scale; }
       function SY(p) { return oy + p.y * scale; }
+      function PT(x, y, z) { var p = project(x, y, z, sy_, cy_, se, ce); return [SX(p), SY(p)]; }
+      function line(a, b, col, w2, dash) {
+        ctx.strokeStyle = col; ctx.lineWidth = w2 || 1;
+        if (dash) ctx.setLineDash(dash);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+        if (dash) ctx.setLineDash([]);
+      }
 
-      /* ---- piso e paredes de referencia ---- */
-      ctx.strokeStyle = THEME.grid; ctx.lineWidth = 1;
+      var stops = (c.ramp || ['#132a6b', '#1f6fb2', '#3aa6a0', '#8dbf4a', '#e6b13c', '#c9452a']).map(hexRgb);
+      function rgb(t, shade) {
+        var col = rampAt(stops, t), m = shade === undefined ? 1 : shade;
+        return 'rgb(' + Math.round(col[0] * m) + ',' + Math.round(col[1] * m) + ',' + Math.round(col[2] * m) + ')';
+      }
+
+      var divs = narrow ? 2 : 4;
+      var stepX = Math.max(1, Math.round((nx - 1) / divs));
+      var stepY = Math.max(1, Math.round((ny - 1) / divs));
+      var nz = c.zTicks || 5;
+      if (narrow) nz = Math.min(nz, 3);   /* menos marcas: nao ha altura para mais */
+
+      /* qual parede fica atras depende do giro: e a de maior profundidade */
+      var xWall = project(-1, 0, 0, sy_, cy_, se, ce).d > project(1, 0, 0, sy_, cy_, se, ce).d ? -1 : 1;
+      var yWall = project(0, -1, 0, sy_, cy_, se, ce).d > project(0, 1, 0, sy_, cy_, se, ce).d ? -1 : 1;
+      /* e a escala vai na borda oposta, a que aparece mais a frente */
+      var xEdge = -xWall, yEdge = -yWall;
+
+      /* ---------- paredes de fundo ---------- */
+      function wall(fixedAxis, at) {
+        var pts = [];
+        for (k = 0; k < 4; k++) {
+          var a2 = (k === 1 || k === 2) ? 1 : -1, z2 = (k < 2) ? zFloor : zTop;
+          pts.push(fixedAxis === 'x' ? PT(at, a2, z2) : PT(a2, at, z2));
+        }
+        /* ordem do quadrilatero: base esquerda, base direita, topo direita, topo esquerda */
+        var quad = [pts[0], pts[1], pts[2], pts[3]];
+        ctx.fillStyle = THEME.pane || 'rgba(127,127,127,.045)';
+        ctx.beginPath();
+        ctx.moveTo(quad[0][0], quad[0][1]);
+        ctx.lineTo(quad[1][0], quad[1][1]);
+        ctx.lineTo(quad[2][0], quad[2][1]);
+        ctx.lineTo(quad[3][0], quad[3][1]);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = THEME.grid; ctx.lineWidth = 1; ctx.stroke();
+
+        /* grade da parede: verticais no eixo livre, horizontais nos niveis */
+        var freeStep = fixedAxis === 'x' ? stepY : stepX;
+        var freeN = fixedAxis === 'x' ? ny : nx;
+        var freeG = fixedAxis === 'x' ? gy : gx;
+        for (var q = freeStep; q < freeN - 1; q += freeStep) {
+          var lo = fixedAxis === 'x' ? PT(at, freeG[q], zFloor) : PT(freeG[q], at, zFloor);
+          var hi = fixedAxis === 'x' ? PT(at, freeG[q], zTop) : PT(freeG[q], at, zTop);
+          line(lo, hi, THEME.grid, 1);
+        }
+        for (q = 0; q <= nz; q++) {
+          var zz = zTop * q / nz;
+          var aa = fixedAxis === 'x' ? PT(at, -1, zz) : PT(-1, at, zz);
+          var bb = fixedAxis === 'x' ? PT(at, 1, zz) : PT(1, at, zz);
+          line(aa, bb, THEME.grid, 1);
+        }
+      }
+      wall('x', xWall);
+      wall('y', yWall);
+
+      /* ---------- piso ---------- */
+      ctx.fillStyle = THEME.pane || 'rgba(127,127,127,.045)';
       ctx.beginPath();
-      ctx.moveTo(SX(floor[0]), SY(floor[0]));
-      for (k = 1; k < 4; k++) ctx.lineTo(SX(floor[k]), SY(floor[k]));
-      ctx.closePath(); ctx.stroke();
-      /* Em tela estreita a mesma quantidade de numeros vira uma pilha
-         ilegivel. A grade e a escala rareiam junto com o espaco.    */
-      ctx.strokeStyle = THEME.grid;
-      for (i = 0; i < nx; i += stepX) {
-        var a = project(gx[i], -1, 0, sy_, cy_, se, ce), b = project(gx[i], 1, 0, sy_, cy_, se, ce);
-        ctx.beginPath(); ctx.moveTo(SX(a), SY(a)); ctx.lineTo(SX(b), SY(b)); ctx.stroke();
-      }
-      for (j = 0; j < ny; j += stepY) {
-        var a2 = project(-1, gy[j], 0, sy_, cy_, se, ce), b2 = project(1, gy[j], 0, sy_, cy_, se, ce);
-        ctx.beginPath(); ctx.moveTo(SX(a2), SY(a2)); ctx.lineTo(SX(b2), SY(b2)); ctx.stroke();
+      var fc = [PT(-1, -1, zFloor), PT(1, -1, zFloor), PT(1, 1, zFloor), PT(-1, 1, zFloor)];
+      ctx.moveTo(fc[0][0], fc[0][1]);
+      for (k = 1; k < 4; k++) ctx.lineTo(fc[k][0], fc[k][1]);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = THEME.grid; ctx.lineWidth = 1; ctx.stroke();
+      for (i = stepX; i < nx - 1; i += stepX) line(PT(gx[i], -1, zFloor), PT(gx[i], 1, zFloor), THEME.grid, 1);
+      for (j = stepY; j < ny - 1; j += stepY) line(PT(-1, gy[j], zFloor), PT(1, gy[j], zFloor), THEME.grid, 1);
+
+      /* ---------- curvas de nivel projetadas na base ---------- */
+      var nIso = c.contours === undefined ? 9 : c.contours;
+      if (nIso) {
+        ctx.lineWidth = 1.25;
+        for (k = 1; k < nIso; k++) {
+          var lv = zLo + (zHi - zLo) * (k / nIso);
+          var segs = isoSegments(Z, gx, gy, lv);
+          ctx.strokeStyle = rgb(k / nIso);
+          ctx.globalAlpha = 0.75;
+          ctx.beginPath();
+          for (var t2 = 0; t2 < segs.length; t2++) {
+            var a3 = PT(segs[t2][0][0], segs[t2][0][1], zFloor);
+            var b3 = PT(segs[t2][1][0], segs[t2][1][1], zFloor);
+            ctx.moveTo(a3[0], a3[1]); ctx.lineTo(b3[0], b3[1]);
+          }
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
       }
 
-      /* ---- faces, da mais distante para a mais proxima ---- */
-      var stops = (c.ramp || ['#c9ced9', '#2450e0', '#d1592a']).map(hexRgb);
+      /* ---------- superficie ---------- */
       var quads = [];
       for (j = 0; j < ny - 1; j++) {
         for (i = 0; i < nx - 1; i++) {
@@ -848,27 +966,22 @@
           quads.push({
             d: (p00.d + p10.d + p11.d + p01.d) / 4,
             a: p00, b: p10, cc: p11, e: p01,
-            zm: (zn(j, i) + zn(j, i + 1) + zn(j + 1, i + 1) + zn(j + 1, i)) / 4,
-            /* inclinacao em mundo, para a luz */
-            nx1: gx[i + 1] - gx[i], nz1: zn(j, i + 1) - zn(j, i),
-            ny2: gy[j + 1] - gy[j], nz2: zn(j + 1, i) - zn(j, i)
+            t: (norm(Z[j][i]) + norm(Z[j][i + 1]) + norm(Z[j + 1][i + 1]) + norm(Z[j + 1][i])) / 4,
+            ax: gx[i + 1] - gx[i], az: zn(j, i + 1) - zn(j, i),
+            by: gy[j + 1] - gy[j], bz: zn(j + 1, i) - zn(j, i)
           });
         }
       }
-      quads.sort(function (u, v) { return v.d - u.d; });
+      quads.sort(function (u, v2) { return v2.d - u.d; });
 
       var LX = -0.42, LY = -0.5, LZ = 0.76;    /* luz vinda de cima e da esquerda */
-      var edge = c.edge !== false;
+      var mesh = c.mesh === false ? null : (THEME.mesh || 'rgba(20,24,32,.34)');
       for (k = 0; k < quads.length; k++) {
         var q2 = quads[k];
-        /* normal do quadrilatero pelo produto vetorial dos dois lados */
-        var ax = q2.nx1, az = q2.nz1, by = q2.ny2, bz = q2.nz2;
-        var nX = -az * by, nY = -ax * bz, nZ = ax * by;
+        var nX = -q2.az * q2.by, nY = -q2.ax * q2.bz, nZ = q2.ax * q2.by;
         var len = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1;
         var lam = (nX * LX + nY * LY + nZ * LZ) / len;
-        var shade = 0.62 + 0.38 * U.clamp(Math.abs(lam), 0, 1);
-        var col = rampAt(stops, q2.zm / zScale);
-        ctx.fillStyle = 'rgb(' + Math.round(col[0] * shade) + ',' + Math.round(col[1] * shade) + ',' + Math.round(col[2] * shade) + ')';
+        ctx.fillStyle = rgb(q2.t, 0.66 + 0.34 * U.clamp(Math.abs(lam), 0, 1));
         ctx.beginPath();
         ctx.moveTo(SX(q2.a), SY(q2.a));
         ctx.lineTo(SX(q2.b), SY(q2.b));
@@ -876,66 +989,70 @@
         ctx.lineTo(SX(q2.e), SY(q2.e));
         ctx.closePath();
         ctx.fill();
-        if (edge) { ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 0.6; ctx.stroke(); }
+        if (mesh) { ctx.strokeStyle = mesh; ctx.lineWidth = 0.55; ctx.stroke(); }
       }
 
-      /* ---- marcador do ponto de operacao ---- */
+      /* ---------- eixo vertical, na quina do fundo ---------- */
+      /* De todas as quinas verticais da caixa, a que aparece mais a
+         esquerda e a que menos disputa espaco com o relevo em
+         qualquer giro. E onde a escala vertical fica.               */
+      var zc = null;
+      for (k = 0; k < 4; k++) {
+        var cx2 = (k & 1) ? 1 : -1, cy2 = (k & 2) ? 1 : -1;
+        var sxx = PT(cx2, cy2, zTop)[0];
+        if (!zc || sxx < zc.sx) zc = { x: cx2, y: cy2, sx: sxx };
+      }
+      var axCol = THEME.axis;
+      line(PT(zc.x, zc.y, zFloor), PT(zc.x, zc.y, zTop), axCol, 1.4);
+      var zfmt = c.zFmt || function (v2) { return U.br(v2, 1); };
+      var zTickLab = [];
+      for (k = 0; k <= nz; k++) {
+        var zz2 = zTop * k / nz;
+        line(PT(zc.x, zc.y, zz2), PT(zc.x * 1.08, zc.y * 1.08, zz2), axCol, 1.2);
+        zTickLab.push({ t: zfmt(zLo + (zHi - zLo) * k / nz), p: PT(zc.x * 1.24, zc.y * 1.24, zz2) });
+      }
+
+      /* ---------- marcador do ponto de operacao ---------- */
       var markerLabel = null;
       if (c.marker && isFinite(c.marker.x) && isFinite(c.marker.y)) {
         var mi = U.clamp((c.marker.x - c.x.min) / (c.x.max - c.x.min || 1), 0, 1) * 2 - 1;
         var mj = U.clamp((c.marker.y - c.y.min) / (c.y.max - c.y.min || 1), 0, 1) * 2 - 1;
-        /* altura interpolada na grade */
         var fi = (mi + 1) / 2 * (nx - 1), fj = (mj + 1) / 2 * (ny - 1);
-        var i0 = Math.min(Math.floor(fi), nx - 2), j0 = Math.min(Math.floor(fj), ny - 2);
-        var tx = fi - i0, ty = fj - j0;
-        var zm = zn(j0, i0) * (1 - tx) * (1 - ty) + zn(j0, i0 + 1) * tx * (1 - ty) +
-                 zn(j0 + 1, i0) * (1 - tx) * ty + zn(j0 + 1, i0 + 1) * tx * ty;
-        var base = project(mi, mj, 0, sy_, cy_, se, ce);
-        var top = project(mi, mj, zm, sy_, cy_, se, ce);
-        ctx.strokeStyle = c.markerColor || THEME.txtStrong;
-        ctx.lineWidth = 1.4; ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(SX(base), SY(base)); ctx.lineTo(SX(top), SY(top)); ctx.stroke();
-        ctx.setLineDash([]);
+        var i0b = Math.min(Math.floor(fi), nx - 2), j0b = Math.min(Math.floor(fj), ny - 2);
+        var tx = fi - i0b, ty = fj - j0b;
+        var zm = zn(j0b, i0b) * (1 - tx) * (1 - ty) + zn(j0b, i0b + 1) * tx * (1 - ty) +
+                 zn(j0b + 1, i0b) * (1 - tx) * ty + zn(j0b + 1, i0b + 1) * tx * ty;
+        var mb = PT(mi, mj, zFloor), mt = PT(mi, mj, zm);
+        line(mb, mt, c.markerColor || THEME.txtStrong, 1.4, [3, 3]);
         ctx.fillStyle = c.markerColor || THEME.txtStrong;
-        ctx.beginPath(); ctx.arc(SX(top), SY(top), 4, 0, 6.284); ctx.fill();
-        markerLabel = c.marker.label ? { t: c.marker.label, x: SX(top), y: SY(top) - 13 } : null;
+        ctx.beginPath(); ctx.arc(mt[0], mt[1], 4, 0, 6.284); ctx.fill();
+        ctx.strokeStyle = THEME.bg; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(mt[0], mt[1], 4, 0, 6.284); ctx.stroke();
+        if (c.marker.label) markerLabel = { t: c.marker.label, x: mt[0], y: mt[1] - 13 };
       }
 
-      /* ---- rotulos, sempre na borda que esta virada para quem olha ----
-         Girar a cena troca qual borda do piso fica na frente. Escrever
-         sempre na mesma borda deixaria os numeros atras do relevo em
-         metade das posicoes, entao a borda e escolhida pela distancia. */
-      /* A borda certa nao e a mais proxima da camera, e a que aparece
-         mais em baixo na tela: e la que o olho espera a escala, e e o
-         unico lugar onde ela nao cai em cima do relevo.             */
-      var yEdge = project(0, -1, 0, sy_, cy_, se, ce).y > project(0, 1, 0, sy_, cy_, se, ce).y ? -1 : 1;
-      var xEdge = project(-1, 0, 0, sy_, cy_, se, ce).y > project(1, 0, 0, sy_, cy_, se, ce).y ? -1 : 1;
-
-      /* Girar coloca qualquer rotulo em cima do relevo mais cedo ou
-         mais tarde. Em vez de brigar com a geometria, cada rotulo leva
-         a propria pastilha de fundo: fica legivel em qualquer angulo. */
-      /* Cada rotulo leva a propria pastilha de fundo, entao continua
-         legivel em cima do relevo. E cada pastilha desenhada entra
-         numa lista: a proxima que colidir com uma ja escrita e
-         simplesmente omitida. Assim os nomes dos eixos, que sao
-         desenhados primeiro, nunca ficam cobertos por um numero.   */
+      /* ---------- rotulos ----------
+         Cada um leva a propria pastilha de fundo, entao continua legivel
+         por cima do relevo. As pastilhas ja escritas entram numa lista: a
+         proxima que colidir com uma delas e omitida, e como os nomes dos
+         eixos sao escritos primeiro, nenhum numero os cobre.            */
       var taken = [];
       function chip(txt, px, py, font, strong, force) {
         ctx.font = font;
-        var w = ctx.measureText(txt).width;
-        var r = { l: px - w / 2 - 4, t: py - 8, rt: px + w / 2 + 4, b: py + 8 };
+        var w2 = ctx.measureText(txt).width;
+        var r2 = { l: px - w2 / 2 - 4, t: py - 8, rt: px + w2 / 2 + 4, b: py + 8 };
         if (!force) {
-          for (var z2 = 0; z2 < taken.length; z2++) {
-            var o2 = taken[z2];
-            if (r.l < o2.rt && r.rt > o2.l && r.t < o2.b && r.b > o2.t) return;
+          for (var z3 = 0; z3 < taken.length; z3++) {
+            var o3 = taken[z3];
+            if (r2.l < o3.rt && r2.rt > o3.l && r2.t < o3.b && r2.b > o3.t) return;
           }
         }
-        taken.push(r);
-        ctx.globalAlpha = 0.88;
+        taken.push(r2);
+        ctx.globalAlpha = 0.9;
         ctx.fillStyle = THEME.bg;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(r.l, r.t, r.rt - r.l, 16, 4);
-        else ctx.rect(r.l, r.t, r.rt - r.l, 16);
+        if (ctx.roundRect) ctx.roundRect(r2.l, r2.t, r2.rt - r2.l, 16, 4);
+        else ctx.rect(r2.l, r2.t, r2.rt - r2.l, 16);
         ctx.fill();
         ctx.globalAlpha = 1;
         ctx.fillStyle = strong ? THEME.txtStrong : THEME.txt;
@@ -949,38 +1066,83 @@
       var axR = narrow ? 1.30 : 1.46, tkR = narrow ? 1.08 : 1.14;
 
       if (markerLabel) chip(markerLabel.t, markerLabel.x, markerLabel.y, axFont, true, true);
-      if (c.xLabel) {
-        var lx = project(0, yEdge * axR, 0, sy_, cy_, se, ce);
-        chip(c.xLabel, SX(lx), SY(lx), axFont, true, true);
-      }
-      if (c.yLabel) {
-        var ly = project(xEdge * axR, 0, 0, sy_, cy_, se, ce);
-        chip(c.yLabel, SX(ly), SY(ly), axFont, true, true);
+      if (c.xLabel) { var lx = PT(0, yEdge * axR, zFloor); chip(c.xLabel, lx[0], lx[1], axFont, true, true); }
+      if (c.yLabel) { var ly = PT(xEdge * axR, 0, zFloor); chip(c.yLabel, ly[0], ly[1], axFont, true, true); }
+      for (k = 0; k < zTickLab.length; k++) {
+        chip(zTickLab[k].t, zTickLab[k].p[0], zTickLab[k].p[1], tickFont, false, true);
       }
       for (i = 0; i < nx; i += stepX) {
-        var t = project(gx[i], yEdge * tkR, 0, sy_, cy_, se, ce);
-        chip(xf(c.x.min + (c.x.max - c.x.min) * (i / (nx - 1))), SX(t), SY(t), tickFont, false);
+        var t3 = PT(gx[i], yEdge * tkR, zFloor);
+        chip(xf(c.x.min + (c.x.max - c.x.min) * (i / (nx - 1))), t3[0], t3[1], tickFont, false);
       }
       for (j = 0; j < ny; j += stepY) {
-        var t2 = project(xEdge * tkR, gy[j], 0, sy_, cy_, se, ce);
-        chip(yf(c.y.min + (c.y.max - c.y.min) * (j / (ny - 1))), SX(t2), SY(t2), tickFont, false);
+        var t4 = PT(xEdge * tkR, gy[j], zFloor);
+        chip(yf(c.y.min + (c.y.max - c.y.min) * (j / (ny - 1))), t4[0], t4[1], tickFont, false);
       }
-      if (c.zLabel) {
-        ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-        ctx.font = '600 12px system-ui,sans-serif';
-        ctx.fillStyle = THEME.txtStrong;
-        ctx.fillText(c.zLabel, 12, 10);
-        if (c.zNote && !narrow) {
-          ctx.font = '10.5px ui-monospace,monospace';
+
+      /* ---------- barra de cores ---------- */
+      if (bar) {
+        var bw = 15, bh = Math.min(H - padT - 44, 220);
+        var bx = W - bar + 10, by = padT + (H - padT - padB - bh) / 2;
+        var grad = ctx.createLinearGradient(0, by + bh, 0, by);
+        for (k = 0; k <= 10; k++) grad.addColorStop(k / 10, rgb(k / 10));
+        ctx.fillStyle = grad;
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = THEME.axis; ctx.lineWidth = 1;
+        ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh);
+        ctx.font = tickFont; ctx.fillStyle = THEME.txt;
+        ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+        for (k = 0; k <= nz; k++) {
+          var yy = by + bh - bh * k / nz;
+          ctx.strokeStyle = THEME.axis;
+          ctx.beginPath(); ctx.moveTo(bx + bw, yy); ctx.lineTo(bx + bw + 4, yy); ctx.stroke();
           ctx.fillStyle = THEME.txt;
-          ctx.fillText(c.zNote, 12, 26);
+          ctx.fillText(zfmt(zLo + (zHi - zLo) * k / nz), bx + bw + 7, yy);
+        }
+        if (c.zLabel) {
+          ctx.save();
+          ctx.translate(bx - 5, by + bh / 2);
+          ctx.rotate(-Math.PI / 2);
+          ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          ctx.font = axFont; ctx.fillStyle = THEME.txtStrong;
+          ctx.fillText(c.zLabel, 0, 0);
+          ctx.restore();
+        }
+      } else if (c.zLabel) {
+        /* sem barra de cores, o nome da grandeza vai para o rodape a
+           esquerda, que e o unico canto que sobra livre                */
+        ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+        ctx.font = '600 11.5px system-ui,sans-serif';
+        ctx.fillStyle = THEME.txtStrong;
+        ctx.fillText(c.zLabel, 12, H - 7);
+      }
+
+      /* ---------- titulo e nota ---------- */
+      if (c.title) {
+        /* o titulo se encolhe ate caber; o subtitulo so aparece se
+           couber inteiro, porque meia frase cortada nao informa nada */
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        var tSize = 13.5;
+        do {
+          ctx.font = '650 ' + tSize + 'px system-ui,sans-serif';
+          if (ctx.measureText(c.title).width <= W - 24) break;
+          tSize -= 0.5;
+        } while (tSize > 10.5);
+        ctx.fillStyle = THEME.txtStrong;
+        ctx.fillText(c.title, W / 2, 10);
+        if (c.subtitle) {
+          ctx.font = '11.5px system-ui,sans-serif';
+          if (ctx.measureText(c.subtitle).width <= W - 24) {
+            ctx.fillStyle = THEME.txt;
+            ctx.fillText(c.subtitle, W / 2, 12 + tSize + 3);
+          }
         }
       }
       if (c.hint) {
         ctx.font = '10.5px system-ui,sans-serif';
         ctx.fillStyle = THEME.txt;
         ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-        ctx.fillText(c.hint, W - 12, H - 8);
+        ctx.fillText(c.hint, W - 12, H - 7);
       }
     }
 
@@ -994,10 +1156,9 @@
         st.stop = M.onFrame(function (dt) {
           if (st.drag) return;                       /* arrastando: o dedo manda */
           st.yaw += st.yawV * dt;
-          st.el += st.elV * dt;
-          st.el = U.clamp(st.el, 0.12, 1.44);
-          var k = Math.exp(-2.6 * dt);               /* atrito */
-          st.yawV *= k; st.elV *= k;
+          st.el = U.clamp(st.el + st.elV * dt, 0.12, 1.44);
+          var kk = Math.exp(-2.6 * dt);              /* atrito */
+          st.yawV *= kk; st.elV *= kk;
           draw();
           if (Math.abs(st.yawV) < 0.02 && Math.abs(st.elV) < 0.02) {
             st.yawV = st.elV = 0; st.stop = null;
@@ -1010,7 +1171,7 @@
       canvas.addEventListener('pointerdown', function (ev) {
         st.drag = { x: ev.clientX, y: ev.clientY, t: performance.now(), vx: 0, vy: 0 };
         st.yawV = st.elV = 0;
-        canvas.setPointerCapture(ev.pointerId);
+        try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
         canvas.style.cursor = 'grabbing';
       });
       canvas.addEventListener('pointermove', function (ev) {
@@ -1025,7 +1186,7 @@
         st.drag.x = ev.clientX; st.drag.y = ev.clientY; st.drag.t = now;
         draw();
       });
-      function release(ev) {
+      function release() {
         if (!st.drag) return;
         /* a velocidade do gesto vira velocidade de giro: solta girando */
         st.yawV = U.clamp(st.drag.vx, -6, 6);

@@ -365,19 +365,15 @@
       pg.zRange = [0, Math.max(hi * 1.12, 1)];
     }
     G.surface($('#chartPlay'), {
-      height: 340, z: Z, zMin: pg.zRange[0], zMax: pg.zRange[1],
+      height: 420, z: Z, zMin: pg.zRange[0], zMax: pg.zRange[1],
+      title: 'Calor rejeitado pelo radiador',
+      subtitle: 'em função da velocidade do veículo e da rotação do motor',
       x: { min: 0, max: 140, fmt: function (v) { return U.br(v, 0); } },
       y: { min: 800, max: 5200, fmt: function (v) { return U.br(v / 1000, 1) + 'k'; } },
       xLabel: 'velocidade (km/h)', yLabel: 'rotação (rpm)',
-      zLabel: 'calor rejeitado (kW)',
-      zNote: (function () {
-        var lo = Infinity, hi = -Infinity;
-        for (var a = 0; a < Z.length; a++) for (var b2 = 0; b2 < Z[a].length; b2++) {
-          var v = Z[a][b2];
-          if (isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
-        }
-        return U.br(hi, 1) + ' kW no pico  ·  ' + U.br(lo, 1) + ' kW parado em marcha lenta';
-      })(),
+      zLabel: 'Q̇  (kW)',
+      zFmt: function (v) { return U.br(v, 0); },
+      zTicks: 6, contours: 9,
       ramp: COL.surfRamp,
       markerColor: COL.mark,
       marker: { x: m.speed, y: m.rpm, label: 'esta coleta' },

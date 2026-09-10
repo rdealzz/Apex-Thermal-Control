@@ -29,7 +29,7 @@
       zoneCold: '#e3e8fb', zoneOk: '#dff0e8', zoneWarn: '#f7ecd5', zoneCrit: '#f8dfdc',
       bandWarn: 'rgba(176,119,13,.08)',
       crCurve: ['#2450e0', '#0f8f62', '#b0770d', '#d1592a', '#c72c1f'],
-      surfRamp: ['#dfe4ee', '#8fa6e8', '#2450e0', '#d1592a']
+      surfRamp: ['#10265f', '#1f6fb2', '#3aa6a0', '#8dbf4a', '#e6b13c', '#c9452a']
     },
     speed: {
       hot: '#ff7a3d', cold: '#12b6ff', amb: '#5a6376', pred: '#3ff0e0',
@@ -42,7 +42,7 @@
       zoneCold: '#123246', zoneOk: '#123f2e', zoneWarn: '#3e3216', zoneCrit: '#45191a',
       bandWarn: 'rgba(255,176,32,.10)',
       crCurve: ['#12b6ff', '#2fe08a', '#ffb020', '#ff8a1f', '#ff3b30'],
-      surfRamp: ['#16202e', '#0e6f9e', '#12b6ff', '#3ff0e0']
+      surfRamp: ['#071b2e', '#0a6a9e', '#12b6ff', '#3ff0e0', '#ffb020', '#ff5a2a']
     }
   };
   var COL = {};
