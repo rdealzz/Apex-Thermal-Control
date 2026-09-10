@@ -93,6 +93,19 @@
       ['tStatFull', 'Abertura plena do termostato', '°C', 1],
       ['bypassMin', 'Fração mínima pelo radiador', '–', 0.01]
     ] },
+    { title: 'Incerteza dos instrumentos', note: 'Semi-amplitude do erro (±) declarada pelo fabricante ou pela resolução. A plataforma trata cada uma como limite com distribuição retangular e usa o valor dividido por √3 como incerteza padrão, conforme o GUM.', items: [
+      ['uTliq', 'Sensor de temperatura do líquido', '°C', 0.1],
+      ['uTobd', 'Leitura de temperatura do OBD-II', '°C', 0.1],
+      ['uTamb', 'Temperatura do ar de entrada', '°C', 0.1],
+      ['uPumpRel', 'Vazão da bomba (relativa)', '–', 0.01],
+      ['uAirRel', 'Vazão de ar na face (relativa)', '–', 0.01],
+      ['uCpRel', 'Correlações de propriedade (relativa)', '–', 0.005]
+    ] },
+    { title: 'Perda de carga e acionamento', note: 'Usados no cálculo do custo de bombeamento e ventilação. A razão f/j típica de aletas persianadas fica entre 3 e 5.', items: [
+      ['fjRatio', 'Razão f/j do lado ar', '–', 0.1],
+      ['etaFan', 'Rendimento do eletroventilador', '–', 0.01],
+      ['etaPump', 'Rendimento da bomba', '–', 0.01]
+    ] },
     { title: 'Mapa térmico do motor', note: 'Usado para estimar o calor entregue ao líquido e fechar o balanço de energia.', items: [
       ['pEngMax', 'Potência máxima', 'W', 1000],
       ['rpmMax', 'Rotação de potência máxima', 'rpm', 100],
@@ -888,6 +901,11 @@
        inercia termica. Sem isso um unico pico domina toda a escala.   */
     var qGenS = movAvg(S.proc.rows, 'qGen', 15);
     var qS = movAvg(S.proc.rows, 'q', 15);
+    renderLmtd(useful);
+    renderEpsSurface(useful);
+    renderUncertainty(useful);
+    renderCompact(useful);
+
     var sBal = [
       { name: 'Calor gerado pelo motor (média 15 s)', color: COL.gen, width: 1.6, area: 'rgba(255,159,67,.16)',
         data: S.proc.rows.map(function (d, i) { return [d.t, qGenS[i] / 1000]; }),
@@ -907,6 +925,209 @@
       tipTitle: function (x) { return 'tempo ' + U.mmss(x); }
     });
     legend('#legBal', sBal);
+  }
+
+  /* a media logaritmica e o fator de correcao do ponto de operacao */
+  function renderLmtd(useful) {
+    var blk = $('#lmtdBlock');
+    if (!blk) return;
+    var s = S.sum;
+    var ok = useful.length > 10 && isFinite(s.dTmlMean);
+    blk.hidden = !ok;
+    if (!ok) return;
+
+    var fOk = isFinite(s.fCorrMean) && s.fCorrMean > 0.75;
+    $('#lmtdKpis').innerHTML =
+      kpi('ΔT média logarítmica', U.br(s.dTmlMean, 1), '°C', 'entre os dois fluidos', 'mut') +
+      kpi('Fator de correção F', U.br(s.fCorrMean, 3), '', fOk ? 'próximo do contracorrente' : 'longe do contracorrente', fOk ? 'ok' : 'warn') +
+      kpi('UA por Q̇ / (F·ΔT_ml)', U.br(s.uaMean, 0), 'W/K', 'idêntico ao ε–NTU, por construção', 'mut');
+
+    $('#lmtdRead').innerHTML =
+      'A diferença média logarítmica entre líquido e ar ficou em <b>' + U.br(s.dTmlMean, 1) +
+      ' °C</b>, e o fator de correção implícito no ponto de operação, em <b>' + U.br(s.fCorrMean, 3) + '</b>. ' +
+      (fOk
+        ? 'F perto de 1 diz que, nesta faixa, o escoamento cruzado está rendendo quase o mesmo que um contracorrente puro renderia com a mesma área — é o regime em que o método da ΔT_ml se aplica sem penalidade relevante.'
+        : 'F bem abaixo de 1 diz que o escoamento cruzado está longe do contracorrente nesta faixa: boa parte da área do núcleo trabalha com diferença de temperatura pequena. É informação de projeto — indica que alongar o núcleo no sentido do ar renderia menos do que aumentar a área frontal.') +
+      ' Vale registrar no relatório que a temperatura de saída do ar não é medida: ela sai do próprio balanço, então esta ΔT_ml é coerente com o resultado por construção, não uma verificação independente dele.';
+  }
+
+  /* a superficie eps(NTU, C_r): a familia inteira de curvas de uma vez */
+  function renderEpsSurface(useful) {
+    var cv = $('#chartEpsSurf');
+    if (!cv || !G.surface) return;
+    var NX = 30, NY = 22;
+    var Z = [];
+    for (var j = 0; j < NY; j++) {
+      var cr = j / (NY - 1);
+      var row = [];
+      for (var i = 0; i < NX; i++) row.push(T.epsCrossflow(0.05 + (5 - 0.05) * i / (NX - 1), cr));
+      Z.push(row);
+    }
+    var s = S.sum;
+    G.surface(cv, {
+      height: 500, z: Z, zMin: 0, zMax: 1,
+      title: 'Efetividade do escoamento cruzado, fluidos não-misturados',
+      subtitle: 'ε = 1 − exp{ (NTU^0,22 / C_r) · [ exp(−C_r·NTU^0,78) − 1 ] }',
+      x: { min: 0.05, max: 5, fmt: function (v) { return U.br(v, 1); } },
+      y: { min: 0, max: 1, fmt: function (v) { return U.br(v, 2); } },
+      xLabel: 'NTU', yLabel: 'C_r', zLabel: 'ε',
+      zFmt: function (v) { return U.br(v, 2); }, zTicks: 5, contours: 10,
+      ramp: COL.surfRamp, markerColor: COL.mark,
+      marker: isFinite(s.ntuMean) ? { x: s.ntuMean, y: s.crMean, label: 'esta coleta' } : null,
+      hint: 'arraste para girar'
+    });
+    $('#epsSurfRead').innerHTML =
+      'O gráfico ao lado mostra cinco fatias desta superfície. Aqui está ela inteira: a efetividade sobe rápido com o NTU até cerca de 2 e depois satura — construir um radiador com NTU 4 em vez de 2 custa o dobro de área e entrega pouco. E quanto maior o C_r, mais baixo o teto: quando os dois fluidos têm capacidades térmicas parecidas, nem a área infinita salva. Esta coleta operou em NTU ' +
+      U.br(s.ntuMean, 2) + ' e C_r ' + U.br(s.crMean, 2) + ', marcado na superfície.';
+  }
+
+  /* ============================================================
+     Incerteza e compacidade
+     ------------------------------------------------------------
+     Duas coisas que faltavam para o estudo se sustentar como
+     trabalho experimental: a barra de erro em cima de cada
+     resultado, e o preco que se paga em potencia de acionamento
+     para conseguir aquela troca.
+     ============================================================ */
+  function renderUncertainty(useful) {
+    var card = $('#uncCard');
+    if (!card) return;
+    var s = S.sum, p = S.params;
+    var ok = useful.length > 10 && isFinite(s.relEps);
+    card.hidden = !ok;
+    if (!ok) return;
+
+    var pm = function (v, u, dec, unit) {
+      return U.br(v, dec) + ' <small>± ' + U.br(u, dec) + (unit ? ' ' + unit : '') + '</small>';
+    };
+    $('#uncKpis').innerHTML =
+      kpi('Calor rejeitado', pm(s.qMean / 1000, s.relQ * s.qMean / 1000, 1, 'kW'), '',
+          U.br(100 * s.relQ, 0) + ' % do valor', 'mut') +
+      kpi('Efetividade', pm(s.epsMean, s.relEps * s.epsMean, 3, ''), '',
+          U.br(100 * s.relEps, 0) + ' % do valor', s.relEps < 0.15 ? 'ok' : s.relEps < 0.35 ? 'warn' : 'hot') +
+      kpi('Condutância UA', pm(s.uaMean, s.relUA * s.uaMean, 0, 'W/K'), '',
+          U.br(100 * s.relUA, 0) + ' % do valor', s.relUA < 0.25 ? 'ok' : 'hot') +
+      kpi('Incerteza do ΔT', U.br(s.uDT, 2), '°C', 'sobre ΔT médio de ' + U.br(s.dtMean, 1) + ' °C', 'mut') +
+      kpi('Amplificação NTU', '×' + U.br(s.ampMean, 2), '', 'quanto ε vira em UA', 'mut');
+
+    var badge = $('#uncBadge');
+    badge.textContent = 'k = 1 · ' + U.br(100 * s.relEps, 0) + ' % em ε';
+    badge.className = 'badge ' + (s.relEps < 0.15 ? 'ok' : s.relEps < 0.35 ? 'warn' : 'hot');
+
+    /* contribuicoes em quadratura, medianas sobre a parte util */
+    var R3 = Math.sqrt(3);
+    var med = function (f) { return U.percentile(useful.map(f).filter(isFinite), 0.5); };
+    var uHot = med(function (d) { return (isFinite(d.tIn) ? p.uTliq : p.uTobd) / R3; });
+    var uOut = p.uTliq / R3, uAmb = p.uTamb / R3;
+    var cDT = med(function (d) { return Math.pow(Math.sqrt(uHot * uHot + uOut * uOut) / d.dT, 2); });
+    var cMax = med(function (d) { return Math.pow(Math.sqrt(uHot * uHot + uAmb * uAmb) / (d.tHotIn - d.tAmb), 2); });
+    var airFrac = 1 - s.liqLimitsPct / 100;
+    var relLiq2 = (p.uPumpRel * p.uPumpRel + p.uCpRel * p.uCpRel) * airFrac;
+    var relAir2 = (p.uAirRel * p.uAirRel + p.uCpRel * p.uCpRel) * airFrac;
+
+    G.stack($('#chartUnc'), {
+      height: 120,
+      title: 'PARTICIPAÇÃO NA VARIÂNCIA DE ε',
+      parts: [
+        { label: 'ΔT medido', value: cDT, color: COL.hot },
+        { label: 'ΔT até o ambiente', value: cMax, color: COL.warn, dark: true },
+        { label: 'vazão do líquido', value: relLiq2, color: COL.q },
+        { label: 'vazão de ar', value: relAir2, color: COL.uaMod }
+      ]
+    });
+
+    /* como a incerteza do UA cresce com a efetividade */
+    var crMed = s.crMean;
+    var amp = [];
+    for (var e = 0.05; e <= 0.95; e += 0.01) {
+      var h = 0.002;
+      var n0 = T.ntuFromEps(e - h, crMed), n1 = T.ntuFromEps(e + h, crMed);
+      var nt = T.ntuFromEps(e, crMed);
+      if (!isFinite(nt) || nt <= 0) continue;
+      amp.push([e, Math.abs((n1 - n0) / (2 * h)) * e / nt]);
+    }
+    G.update($('#chartAmp'), {
+      height: 220,
+      series: [{ name: 'amplificação', color: COL.pred, width: 2,
+        data: amp, tipFmt: function (v) { return '×' + U.br(v, 2); } }],
+      xMin: 0, xMax: 1, yMin: 0,
+      marks: [{ x: s.epsMean, color: COL.mark }],
+      xLabel: 'efetividade ε', yLabel: 'fator de amplificação (×)',
+      xFmt: function (v) { return U.br(v, 1); }, yFmt: function (v) { return U.br(v, 1); },
+      tipTitle: function (v) { return 'ε = ' + U.br(v, 2); }
+    });
+
+    var canc = s.liqLimitsPct > 50;
+    $('#uncRead').innerHTML =
+      'Com os instrumentos declarados, a efetividade sai <b>' + U.br(s.epsMean, 3) + ' ± ' +
+      U.br(s.relEps * s.epsMean, 3) + '</b> e o UA, <b>' + U.br(s.uaMean, 0) + ' ± ' +
+      U.br(s.relUA * s.uaMean, 0) + ' W/K</b>. ' +
+      (canc
+        ? 'Em <b>' + U.br(s.liqLimitsPct, 0) + '%</b> das amostras o líquido é o lado de menor capacidade térmica, e aí acontece algo que vale escrever no relatório: a vazão aparece no calor rejeitado <i>e</i> no calor máximo, e cancela. A efetividade vira ΔT dividido por (T_líquido − T_ar) — só temperaturas. O parâmetro mais incerto da montagem, a vazão da bomba, não contamina o resultado principal.'
+        : 'Em <b>' + U.br(100 - s.liqLimitsPct, 0) + '%</b> das amostras quem limita é o ar, e nesse regime a vazão <i>não</i> cancela: as incertezas das duas vazões entram inteiras na efetividade. É por isso que a barra de erro está grande — reduzi-la exige medir a velocidade de face com anemômetro, não um sensor melhor de temperatura.') +
+      ' O UA sai ainda pior porque o NTU é muito não-linear: neste ponto de operação, cada 1% de incerteza em ε vira <b>' +
+      U.br(s.ampMean, 2) + '%</b> em NTU, e a curva ao lado mostra que isso piora rápido conforme ε sobe.';
+  }
+
+  function renderCompact(useful) {
+    var card = $('#compactCard');
+    if (!card) return;
+    var s = S.sum;
+    var ok = useful.length > 10 && isFinite(s.jAirMean);
+    card.hidden = !ok;
+    if (!ok) return;
+
+    var inRange = s.jAirMean >= 0.008 && s.jAirMean <= 0.035;
+    $('#compactKpis').innerHTML =
+      kpi('Fator j de Colburn', U.br(s.jAirMean, 4), '', inRange ? 'dentro da faixa de aletas persianadas' : 'fora da faixa típica 0,008–0,035', inRange ? 'ok' : 'warn') +
+      kpi('Stanton do ar', U.br(s.stAirMean, 4), '', 'j · Pr^(−2/3)', 'mut') +
+      kpi('Perda de carga — ar', U.br(s.dpAirMean, 0), 'Pa', 'no núcleo', 'mut') +
+      kpi('Perda de carga — líquido', U.br(s.dpCoolMean, 0), 'Pa', 'nos tubos planos', 'mut') +
+      kpi('Custo de acionamento', U.br(s.wDriveMean, 0), 'W', 'ventilador + bomba + arrasto', 'mut') +
+      kpi('Figura de mérito', U.br(s.meritMean, 0), '', 'W de calor por W gasto', 'ok');
+
+    G.update($('#chartJ'), {
+      height: 230, padL: 64,
+      series: [{ name: 'fator j', color: COL.q, type: 'scatter', r: 2,
+        data: useful.map(function (d) { return [d.reAir, d.jAir]; }),
+        tipFmt: function (v) { return U.br(v, 4); } }],
+      yMin: 0, xMin: 0,
+      hlines: [{ y: 0.008, color: COL.warn, label: 'faixa típica 0,008' },
+               { y: 0.035, color: COL.warn, label: '0,035' }],
+      xLabel: 'Reynolds do ar no canal', yLabel: 'fator j de Colburn',
+      xFmt: function (v) { return U.br(v, 0); }, yFmt: function (v) { return U.br(v, 3); }
+    });
+
+    var sp = [
+      { name: 'arrasto do veículo', color: COL.hot, width: 1.6, area: COL.qArea,
+        data: S.proc.rows.map(function (d) { return [d.t, d.warmup ? NaN : d.wRam]; }),
+        tipFmt: function (v) { return U.br(v, 0) + ' W'; } },
+      { name: 'eletroventilador', color: COL.q, width: 1.6,
+        data: S.proc.rows.map(function (d) { return [d.t, d.warmup ? NaN : d.wFan]; }),
+        tipFmt: function (v) { return U.br(v, 0) + ' W'; } },
+      { name: 'bomba d\'água', color: COL.spd, width: 1.4,
+        data: S.proc.rows.map(function (d) { return [d.t, d.warmup ? NaN : d.wPump]; }),
+        tipFmt: function (v) { return U.br(v, 1) + ' W'; } }
+    ];
+    G.update($('#chartPower'), {
+      height: 230, series: sp, xFmt: U.mmss, yMin: 0,
+      yMax: capMax(S.proc.rows.filter(function (d) { return !d.warmup; })
+        .map(function (d) { return Math.max(d.wRam || 0, d.wFan || 0); }), 0.98),
+      xLabel: 'tempo (mm:ss)', yLabel: 'potência de acionamento (W)',
+      tipTitle: function (x) { return 'tempo ' + U.mmss(x); }
+    });
+    legend('#legPower', sp);
+
+    $('#compactRead').innerHTML =
+      'O fator j médio deu <b>' + U.br(s.jAirMean, 4) + '</b>' +
+      (inRange
+        ? ', dentro da faixa que a literatura reporta para aletas persianadas de radiador automotivo — ou seja, os coeficientes C e m adotados no modelo são plausíveis para esta geometria.'
+        : ', fora da faixa típica de aletas persianadas. Vale revisar C, m e a densidade de área do núcleo antes de confiar no UA teórico.') +
+      ' Mover os dois fluidos custou <b>' + U.br(s.wDriveMean, 0) + ' W</b> em média — ' +
+      U.br(s.wRamMean, 0) + ' W de arrasto que o carro paga para empurrar ar pelo núcleo, ' +
+      U.br(s.wFanMean, 0) + ' W do eletroventilador e apenas ' + U.br(s.wPumpMean, 1) +
+      ' W da bomba. Para cada watt gasto nisso, o radiador tirou <b>' + U.br(s.meritMean, 0) +
+      ' W</b> de calor do líquido. É esse o número que um núcleo mais denso teria de melhorar: mais área aumenta a troca, mas aumenta a perda de carga junto.';
   }
 
   function doCalibrate() {
@@ -1260,7 +1481,50 @@
           ? 'Valores abaixo da faixa indicam ou perda real de desempenho do radiador, ou superestimação da vazão do líquido — que é o parâmetro mais incerto do modelo e deve ser calibrado.'
           : 'Valores acima da faixa costumam indicar subestimação da vazão de ar ou do líquido no modelo.')) + '</p>');
 
-    h.push('<h3>4. Resultados por regime de operação</h3>');
+    /* incerteza: o que transforma os numeros acima em resultado */
+    if (isFinite(s.relEps)) {
+      h.push('<h3>4. Incerteza dos resultados</h3>');
+      h.push('<p>Incertezas padrão (k = 1) propagadas pela cadeia de cálculo a partir das especificações dos instrumentos: ±' +
+        U.br(p.uTliq, 1) + ' °C nos sensores das mangueiras, ±' + U.br(p.uTobd, 1) +
+        ' °C na leitura do PID <code>0105</code>, ±' + U.br(100 * p.uPumpRel, 0) +
+        ' % na vazão da bomba e ±' + U.br(100 * p.uAirRel, 0) +
+        ' % na vazão de ar na face. As especificações são tratadas como limites de erro com distribuição retangular, ' +
+        'conforme o GUM, de modo que a incerteza padrão de cada uma é o limite dividido por √3.</p>');
+      h.push('<div class="tbl-scroll"><table class="compact"><tbody>' +
+        row('Calor rejeitado Q̇', U.br(s.qMean / 1000, 1) + ' ± ' + U.br(s.relQ * s.qMean / 1000, 1) + ' kW  (' + U.br(100 * s.relQ, 0) + ' %)') +
+        row('Efetividade ε', U.br(s.epsMean, 3) + ' ± ' + U.br(s.relEps * s.epsMean, 3) + '  (' + U.br(100 * s.relEps, 0) + ' %)') +
+        row('Condutância UA', U.br(s.uaMean, 0) + ' ± ' + U.br(s.relUA * s.uaMean, 0) + ' W/K  (' + U.br(100 * s.relUA, 0) + ' %)') +
+        row('Incerteza do ΔT medido', U.br(s.uDT, 2) + ' °C sobre ΔT médio de ' + U.br(s.dtMean, 1) + ' °C') +
+        row('Amplificação NTU(ε)', '× ' + U.br(s.ampMean, 2)) +
+        row('Amostras limitadas pelo líquido', U.br(s.liqLimitsPct, 0) + ' %') +
+        '</tbody></table></div>');
+      h.push('<p>' + (s.liqLimitsPct > 50
+        ? 'Na maior parte da coleta o líquido é o fluido de menor capacidade térmica. Nesse regime a vazão aparece tanto no calor rejeitado quanto no calor máximo e cancela algebricamente: a efetividade se reduz a ΔT / (T_líquido − T_ar), função apenas de temperaturas. A vazão da bomba, que é o parâmetro mais incerto da montagem, portanto não contamina o resultado principal.'
+        : 'Na maior parte da coleta é o ar que limita a troca. Nesse regime a vazão não cancela, e as incertezas das duas vazões entram integralmente na efetividade — motivo pelo qual a barra de erro é dominada por elas e não pelos sensores de temperatura. Reduzi-la exige medir a velocidade de face com anemômetro.') +
+        ' A condutância UA carrega ainda a não-linearidade da inversão NTU(ε): neste ponto de operação, cada 1 % de incerteza em ε corresponde a ' +
+        U.br(s.ampMean, 2) + ' % em NTU.</p>');
+    }
+
+    /* compacidade e custo de acionamento */
+    if (isFinite(s.jAirMean)) {
+      h.push('<h3>5. Compacidade e custo de acionamento</h3>');
+      h.push('<div class="tbl-scroll"><table class="compact"><tbody>' +
+        row('Fator j de Colburn (lado ar)', U.br(s.jAirMean, 4)) +
+        row('Número de Stanton (lado ar)', U.br(s.stAirMean, 4)) +
+        row('Perda de carga — ar', U.br(s.dpAirMean, 0) + ' Pa') +
+        row('Perda de carga — líquido', U.br(s.dpCoolMean, 0) + ' Pa') +
+        row('Potência de arrasto do veículo', U.br(s.wRamMean, 0) + ' W') +
+        row('Potência do eletroventilador', U.br(s.wFanMean, 0) + ' W') +
+        row('Potência de bombeamento', U.br(s.wPumpMean, 1) + ' W') +
+        row('Figura de mérito Q̇ / W acionamento', U.br(s.meritMean, 0)) +
+        '</tbody></table></div>');
+      h.push('<p>O fator j de Colburn ' + (s.jAirMean >= 0.008 && s.jAirMean <= 0.035
+        ? 'situa-se na faixa reportada na literatura para aletas persianadas de radiadores automotivos, o que sustenta os coeficientes C e m adotados na correlação do lado ar.'
+        : 'situa-se fora da faixa usual de aletas persianadas, o que recomenda revisão dos coeficientes C e m e da densidade de área antes de utilizar o UA teórico como referência.') +
+        ' O custo de acionamento é dominado pelo arrasto que o veículo paga para forçar ar pelo núcleo, não pela bomba d\'água — o que localiza corretamente onde um ganho de projeto seria mais caro.</p>');
+    }
+
+    h.push('<h3>6. Resultados por regime de operação</h3>');
     h.push('<div class="tbl-scroll"><table class="compact"><thead><tr><th>Regime</th><th class="num">n</th>' +
       '<th class="num">T líquido</th><th class="num">ΔT</th><th class="num">Q̇</th><th class="num">ε</th>' +
       '<th class="num">NTU</th><th class="num">C_r</th><th class="num">UA</th></tr></thead><tbody>' +
@@ -1272,7 +1536,7 @@
           '<td class="num">' + U.br(r.ua, 0) + ' W/K</td></tr>';
       }).join('') + '</tbody></table></div>');
 
-    h.push('<h3>5. Previsão de temperatura</h3>');
+    h.push('<h3>7. Previsão de temperatura</h3>');
     if (fit && fit.ok) {
       var target = parseFloat($('#inMaeTarget').value) || 2.0;
       var v = M.verdict(fit, target);
@@ -1297,7 +1561,7 @@
       h.push('<p>Modelo não treinado nesta sessão.</p>');
     }
 
-    h.push('<h3>6. Alertas e anomalias</h3>');
+    h.push('<h3>8. Alertas e anomalias</h3>');
     if (a) {
       h.push('<div class="tbl-scroll"><table class="compact"><tbody>' +
         row('Alertas preditivos de nível crítico', U.br(a.nPred, 0)) +
@@ -1320,7 +1584,7 @@
       }
     }
 
-    h.push('<h3>7. Parâmetros e geometria adotados</h3>');
+    h.push('<h3>9. Parâmetros e geometria adotados</h3>');
     h.push('<div class="tbl-scroll"><table class="compact"><tbody>' +
       row('Núcleo do radiador', U.br(p.coreW * 1000, 0) + ' × ' + U.br(p.coreH * 1000, 0) + ' × ' + U.br(p.coreD * 1000, 0) + ' mm') +
       row('Área frontal', U.br(g.aFront, 3) + ' m²') +
@@ -1337,7 +1601,7 @@
       row('Fluido', 'mistura água / etilenoglicol 50 % em volume') +
       '</tbody></table></div>');
 
-    h.push('<h3>8. Limitações e próximos passos</h3><ul class="clean">');
+    h.push('<h3>10. Limitações e próximos passos</h3><ul class="clean">');
     if (s.mode !== 'exp') h.push('<li>Sem ΔT medido, a efetividade apresentada é uma estimativa do modelo, não um resultado experimental. Instrumentar as mangueiras é a próxima ação prioritária.</li>');
     h.push('<li>A vazão do líquido é estimada em função da rotação (' + U.br(p.pumpDisp, 3) +
       ' L/rev) e é a maior fonte de incerteza do balanço de energia: um erro de 20 % na vazão se propaga integralmente para Q̇ e para ε.</li>');

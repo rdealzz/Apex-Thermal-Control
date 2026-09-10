@@ -485,6 +485,13 @@
       </div>
     </div>
     <div class="note" id="modeNote">Carregue uma coleta para ver os resultados.</div>
+    <div id="lmtdBlock" hidden>
+      <div class="sep"></div>
+      <h3>Verificação pela média logarítmica</h3>
+      <p class="hint">O outro método que a disciplina cobre. Para a mesma correlação de efetividade os dois são algebricamente equivalentes, então isto não é uma medida independente — é a tradução do mesmo resultado para a linguagem da ΔT<sub>ml</sub>, mais o fator de correção que o ponto de operação implica.</p>
+      <div class="kpis" id="lmtdKpis"></div>
+      <div class="reading" id="lmtdRead"></div>
+    </div>
   </div>
 
   <div class="card lift" id="anaResults" hidden>
@@ -504,6 +511,13 @@
       </div>
     </div>
     <div class="sep"></div>
+    <div class="chart-h">
+      <span class="ct">A relação ε–NTU inteira</span>
+      <span class="cs">a mesma família de curvas ao lado, mas como a superfície que ela realmente é</span>
+    </div>
+    <div class="chart-box"><canvas id="chartEpsSurf"></canvas></div>
+    <div class="reading" id="epsSurfRead"></div>
+    <div class="sep"></div>
     <div class="grid g2">
       <div>
         <div class="chart-h"><span class="ct">Coeficiente global UA</span><span class="cs">experimental × previsto pelas correlações</span></div>
@@ -516,6 +530,46 @@
         <div class="legend" id="legBal"></div>
       </div>
     </div>
+  </div>
+
+  <div class="card lift ticked" id="uncCard" hidden>
+    <div class="spread">
+      <h2>Incerteza dos resultados</h2>
+      <span class="badge" id="uncBadge">—</span>
+    </div>
+    <p class="hint">Lei de propagação de incerteza aplicada à cadeia inteira, com as especificações dos instrumentos declaradas nos parâmetros. Um resultado sem barra de erro não é resultado — é número.</p>
+    <div class="kpis" id="uncKpis"></div>
+    <div class="sep"></div>
+    <div class="grid g2">
+      <div>
+        <div class="chart-h"><span class="ct">De onde vem a incerteza da efetividade</span><span class="cs">contribuição de cada fonte, em quadratura</span></div>
+        <div class="chart-box"><canvas id="chartUnc"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-h"><span class="ct">Amplificação no UA</span><span class="cs">NTU é muito não-linear perto do teto da efetividade</span></div>
+        <div class="chart-box"><canvas id="chartAmp"></canvas></div>
+      </div>
+    </div>
+    <div class="reading" id="uncRead"></div>
+  </div>
+
+  <div class="card lift ticked" id="compactCard" hidden>
+    <h2>Compacidade e custo de acionamento</h2>
+    <p class="hint">Um núcleo compacto se descreve pelo fator <i>j</i> de Colburn, não pelo Nusselt cru — é a forma adimensional em que os catálogos publicam desempenho, e a única que permite comparar este radiador com um de referência. E toda troca de calor se paga em perda de carga.</p>
+    <div class="kpis" id="compactKpis"></div>
+    <div class="sep"></div>
+    <div class="grid g2">
+      <div>
+        <div class="chart-h"><span class="ct">Fator j de Colburn × Reynolds do ar</span><span class="cs">cada ponto é uma amostra; a faixa é a de aletas persianadas</span></div>
+        <div class="chart-box"><canvas id="chartJ"></canvas></div>
+      </div>
+      <div>
+        <div class="chart-h"><span class="ct">Quem paga para mover os fluidos</span><span class="cs">potência de acionamento ao longo da coleta</span></div>
+        <div class="chart-box"><canvas id="chartPower"></canvas></div>
+        <div class="legend" id="legPower"></div>
+      </div>
+    </div>
+    <div class="reading" id="compactRead"></div>
   </div>
 
   <div class="card lift ticked">

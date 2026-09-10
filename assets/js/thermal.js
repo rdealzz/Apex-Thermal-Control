@@ -99,6 +99,19 @@
       ambFromIat: 3.0,     // C   T_amb = IAT - offset, quando nao houver sensor de ambiente
       pAtm: 101325,        // Pa  pressao atmosferica (Curitiba ~ 92 kPa; ajustar se necessario)
 
+      // --- incerteza dos instrumentos (semi-amplitude do erro, +/-) ---
+      uTliq: 0.5,          // C   exatidao do DS18B20 nas mangueiras
+      uTobd: 1.0,          // C   resolucao do PID 0105 (1 grau)
+      uTamb: 1.0,          // C   exatidao da temperatura do ar de entrada
+      uPumpRel: 0.20,      // -   incerteza relativa da vazao da bomba
+      uAirRel: 0.25,       // -   incerteza relativa da vazao de ar na face
+      uCpRel: 0.02,        // -   incerteza das correlacoes de propriedade
+
+      // --- perda de carga e potencia de acionamento ---
+      fjRatio: 4.0,        // -   razao f/j tipica de aletas persianadas
+      etaFan: 0.35,        // -   rendimento do conjunto eletroventilador
+      etaPump: 0.55,       // -   rendimento da bomba d'agua
+
       // --- limites de alarme ---
       tCrit: 105,          // C   limite critico do liquido
       tWarn: 100,          // C   limite de atencao
@@ -164,7 +177,13 @@
     var vFace = Math.sqrt(vRam * vRam + vFan * vFan);
     var pr = T.air(Tamb, p.pAtm);
     var g = T.geom(p);
-    return { vFace: vFace, mdot: pr.rho * g.aFront * vFace, prop: pr, aFront: g.aFront };
+    return {
+      vFace: vFace, mdot: pr.rho * g.aFront * vFace, prop: pr, aFront: g.aFront,
+      vRam: vRam, vFan: vFan,
+      /* como vFace^2 = vRam^2 + vFan^2, a razao dos quadrados reparte a
+         energia cinetica do escoamento entre quem a forneceu          */
+      fanShare: vFace > 1e-6 ? (vFan * vFan) / (vFace * vFace) : 0
+    };
   };
 
   /* ---------- UA teorico por correlacoes (resistencias em serie) ----------
@@ -201,6 +220,153 @@
     };
   };
 
+
+  /* ============================================================
+     MEDIA LOGARITMICA DAS DIFERENCAS DE TEMPERATURA
+     ------------------------------------------------------------
+     O outro metodo que a disciplina cobre. Aqui ele nao e um
+     caminho independente — ele e algebricamente equivalente ao
+     efetividade-NTU para a mesma correlacao — mas entrega duas
+     grandezas que o relatorio precisa mostrar: a propria DT_ml e o
+     fator de correcao F que a analise implica para este ponto de
+     operacao. F longe de 1 avisa que o trocador esta operando fora
+     da faixa em que o escoamento cruzado se aproxima do contra-
+     corrente, e isso e informacao de projeto.
+     ============================================================ */
+  T.lmtd = function (tHotIn, tHotOut, tColdIn, tColdOut) {
+    var d1 = tHotIn - tColdOut;
+    var d2 = tHotOut - tColdIn;
+    if (!isFinite(d1) || !isFinite(d2) || d1 <= 0 || d2 <= 0) return NaN;
+    if (Math.abs(d1 - d2) < 1e-6) return d1;          // limite dos extremos iguais
+    return (d1 - d2) / Math.log(d1 / d2);
+  };
+
+  /* ============================================================
+     COMPACIDADE E CUSTO DE ACIONAMENTO
+     ------------------------------------------------------------
+     Um trocador compacto se descreve pelo fator j de Colburn, nao
+     pelo Nusselt cru: j = Nu / (Re Pr^(1/3)) = St Pr^(2/3) e a
+     forma adimensional em que os catalogos de nucleo publicam
+     desempenho, entao e o unico numero que permite comparar este
+     radiador com um de referencia.
+
+     E toda troca de calor se paga em perda de carga. Sem a potencia
+     de ventilacao e de bombeamento ao lado, "aumentar a area" parece
+     de graca — e nao e.
+     ============================================================ */
+  T.compact = function (um, mdotAir, Tamb, mdotCool, Tcool, p, fanShare) {
+    var g = T.geom(p);
+    var pa = T.air(Tamb, p.pAtm);
+    var pc = T.coolant(Tcool);
+
+    // ---- lado ar ----
+    var aFlowAir = Math.max(g.aFront * p.sigma, 1e-9);
+    var gAir = mdotAir / aFlowAir;                       // fluxo massico maximo
+    var jAir = um.reAir > 1 ? um.nuAir / (um.reAir * Math.pow(pa.Pr, 1 / 3)) : NaN;
+    var stAir = isFinite(jAir) ? jAir / Math.pow(pa.Pr, 2 / 3) : NaN;
+    var fAir = isFinite(jAir) ? p.fjRatio * jAir : NaN;
+    /* nucleo compacto (Kays & London): dP = f (A/Ac) G^2 / (2 rho) */
+    var dpAir = isFinite(fAir) ? fAir * (g.aAir / aFlowAir) * gAir * gAir / (2 * pa.rho) : NaN;
+    var vdotAir = mdotAir / pa.rho;
+    /* Potencia para empurrar o ar pelo nucleo. Ela nao e toda do
+       eletroventilador: em rodovia quem paga e o proprio veiculo, na
+       forma de arrasto. A repartição vem da fracao de energia
+       cinetica que cada fonte colocou no escoamento.                */
+    var wAir = isFinite(dpAir) ? dpAir * vdotAir : NaN;
+    var share = U.clamp(fanShare === undefined ? 1 : fanShare, 0, 1);
+    var wFan = isFinite(wAir) ? wAir * share / Math.max(p.etaFan, 0.05) : NaN;
+    var wRam = isFinite(wAir) ? wAir * (1 - share) : NaN;
+
+    // ---- lado liquido ----
+    var vCool = mdotCool / Math.max(pc.rho * g.aFlowCool, 1e-9);
+    var fCool = um.reCool > 2300
+      ? 0.316 * Math.pow(um.reCool, -0.25)               // Blasius, tubo liso
+      : (um.reCool > 1 ? 64 / um.reCool : NaN);          // laminar plenamente desenvolvido
+    var dpCool = isFinite(fCool)
+      ? fCool * (p.coreW / Math.max(g.dhCool, 1e-9)) * pc.rho * vCool * vCool / 2
+      : NaN;
+    var vdotCool = mdotCool / pc.rho;
+    var wPump = isFinite(dpCool) ? dpCool * vdotCool / Math.max(p.etaPump, 0.05) : NaN;
+
+    /* o custo total de mover os dois fluidos inclui o arrasto: ignorar
+       o que o veiculo paga faria o radiador parecer de graca em
+       rodovia, que e justamente onde ele mais consome                */
+    var wTotal = (isFinite(wFan) ? wFan : 0) + (isFinite(wPump) ? wPump : 0) + (isFinite(wRam) ? wRam : 0);
+    return {
+      jAir: jAir, stAir: stAir, fAir: fAir, dpAir: dpAir,
+      wAir: wAir, wFan: wFan, wRam: wRam,
+      vCool: vCool, fCool: fCool, dpCool: dpCool, wPump: wPump, wTotal: wTotal
+    };
+  };
+
+  /* ============================================================
+     PROPAGACAO DE INCERTEZA
+     ------------------------------------------------------------
+     Sem isto, "efetividade 0,55" nao e um resultado — e um numero.
+     A lei de propagacao aplicada a cadeia inteira, com as
+     incertezas dos instrumentos declaradas nos parametros.
+
+     Um resultado importante cai fora da conta: quando o liquido e
+     o lado de menor capacidade termica, a vazao aparece no calor
+     rejeitado E no calor maximo, e cancela. A efetividade vira
+     DT / (T_liq - T_ar), so temperaturas — ou seja, o parametro
+     mais incerto da montagem, a vazao da bomba, nao contamina o
+     resultado principal. Vale escrever isso no relatorio.
+
+     Ja o UA nao escapa: o NTU e uma funcao muito nao-linear da
+     efetividade, e perto do teto dela a derivada explode. O fator
+     de amplificacao devolvido aqui diz quantas vezes a incerteza
+     relativa da efetividade aparece ampliada no UA.
+     ============================================================ */
+  T.uncertainty = function (d, p) {
+    /* especificacao +/- a com distribuicao retangular vira desvio
+       padrao a/raiz(3): e o que o GUM manda usar quando o fabricante
+       so publica o limite de erro                                  */
+    var R3 = Math.sqrt(3);
+    var uHot = (isFinite(d.tIn) ? p.uTliq : p.uTobd) / R3;
+    var uOut = p.uTliq / R3;
+    var uAmb = p.uTamb / R3;
+
+    var uDT = Math.sqrt(uHot * uHot + uOut * uOut);
+    var uDTmax = Math.sqrt(uHot * uHot + uAmb * uAmb);
+    var dTmax = d.tHotIn - d.tAmb;
+
+    var relFlowLiq = Math.sqrt(p.uPumpRel * p.uPumpRel + p.uCpRel * p.uCpRel);
+    var relFlowAir = Math.sqrt(p.uAirRel * p.uAirRel + p.uCpRel * p.uCpRel);
+    var liqLimits = d.Ch <= d.Cc;
+    var relCmin = liqLimits ? relFlowLiq : relFlowAir;
+
+    var out = { liqLimits: liqLimits, uDT: uDT, uDTmax: uDTmax, relCmin: relCmin };
+
+    /* calor rejeitado */
+    out.relQ = isFinite(d.dT) && Math.abs(d.dT) > 1e-6
+      ? Math.sqrt(relFlowLiq * relFlowLiq + Math.pow(uDT / d.dT, 2))
+      : NaN;
+    out.uQ = isFinite(out.relQ) ? out.relQ * Math.abs(d.q) : NaN;
+
+    /* efetividade: a vazao cancela quando o liquido limita */
+    var termDT = isFinite(d.dT) && Math.abs(d.dT) > 1e-6 ? uDT / d.dT : NaN;
+    var termMax = isFinite(dTmax) && Math.abs(dTmax) > 1e-6 ? uDTmax / dTmax : NaN;
+    if (isFinite(termDT) && isFinite(termMax)) {
+      var quad = termDT * termDT + termMax * termMax;
+      if (!liqLimits) quad += relFlowLiq * relFlowLiq + relFlowAir * relFlowAir;
+      out.relEps = Math.sqrt(quad);
+      out.uEps = out.relEps * Math.abs(d.eps);
+    } else { out.relEps = NaN; out.uEps = NaN; }
+
+    /* UA: a nao-linearidade de NTU(eps) amplifica o que vem antes */
+    if (isFinite(d.eps) && isFinite(d.ntu) && d.ntu > 0 && isFinite(out.relEps)) {
+      var h = 0.002;
+      var e1 = U.clamp(d.eps + h, 0.001, 0.999), e0 = U.clamp(d.eps - h, 0.001, 0.999);
+      var dNdE = (T.ntuFromEps(e1, d.Cr) - T.ntuFromEps(e0, d.Cr)) / Math.max(e1 - e0, 1e-9);
+      out.amp = Math.abs(dNdE) * d.eps / d.ntu;
+      out.relNtu = out.amp * out.relEps;
+      out.relUA = Math.sqrt(out.relNtu * out.relNtu + relCmin * relCmin);
+      out.uUA = out.relUA * Math.abs(d.ua);
+    } else { out.amp = NaN; out.relNtu = NaN; out.relUA = NaN; out.uUA = NaN; }
+
+    return out;
+  };
 
   /* ============================================================
      Calibracao do modelo: ajusta o fator uaScale para minimizar o
@@ -290,7 +456,7 @@
       var af = T.airFlow(r.speed, d.fan >= 0.5, d.tAmb, p);
       d.mdotCool = cf.mdot; d.vdotCool = cf.vdot * 60000; // L/min
       d.tStatFrac = cf.frac;
-      d.mdotAir = af.mdot; d.vFace = af.vFace;
+      d.mdotAir = af.mdot; d.vFace = af.vFace; d.fanShare = af.fanShare;
       d.cpCool = cf.prop.cp; d.cpAir = af.prop.cp;
 
       d.Ch = d.mdotCool * d.cpCool;      // W/K  lado quente (liquido)
@@ -362,6 +528,26 @@
         d.tau = p.cTh / d.uaEff;
       } else { d.tEq = NaN; d.tau = NaN; }
 
+      /* --- media logaritmica e fator de correcao implicito ---
+         A temperatura de saida do ar nao e medida: ela sai do proprio
+         balanco. Entao a DT_ml aqui e coerente com o resultado, nao
+         uma verificacao independente — e assim que ela deve ser lida
+         no relatorio.                                                */
+      d.dTml = T.lmtd(tHotIn, tHotIn - d.dT, d.tAmb, d.tAirOut);
+      d.fCorr = (isFinite(d.dTml) && d.dTml > 0.1 && isFinite(d.ua) && d.ua > 1)
+        ? (d.q / d.dTml) / d.ua : NaN;
+
+      /* --- compacidade e o que custa mover os dois fluidos --- */
+      var cp2 = T.compact(um, d.mdotAir, d.tAmb, d.mdotCool, tHotIn, p, af.fanShare);
+      d.jAir = cp2.jAir; d.stAir = cp2.stAir;
+      d.dpAir = cp2.dpAir; d.dpCool = cp2.dpCool;
+      d.wFan = cp2.wFan; d.wPump = cp2.wPump; d.wRam = cp2.wRam; d.wDrive = cp2.wTotal;
+      /* quantos watts de calor por watt gasto para mover os fluidos */
+      d.merit = (isFinite(d.q) && cp2.wTotal > 0.1) ? d.q / cp2.wTotal : NaN;
+
+      /* --- incerteza do resultado deste instante --- */
+      d.unc = T.uncertainty(d, p);
+
       /* --- regime de operacao --- */
       d.regime = r.speed < 3 ? 'Marcha lenta'
                : (r.speed < 60 ? 'Urbano' : 'Rodovia');
@@ -427,8 +613,36 @@
       healthMean: U.mean(pick(useful, function (d) { return d.health; })),
       dtMean: U.mean(pick(useful, function (d) { return d.dT; })),
       fanPct: 100 * rows.filter(function (d) { return d.fan >= 0.5; }).length / Math.max(rows.length, 1),
+      /* incerteza: a mediana e mais representativa que a media, porque
+         nas amostras de DT pequeno a relativa dispara e distorce       */
+      relEps: U.percentile(pick(useful, function (d) { return d.unc && d.unc.relEps; }), 0.5),
+      relQ: U.percentile(pick(useful, function (d) { return d.unc && d.unc.relQ; }), 0.5),
+      relUA: U.percentile(pick(useful, function (d) { return d.unc && d.unc.relUA; }), 0.5),
+      ampMean: U.percentile(pick(useful, function (d) { return d.unc && d.unc.amp; }), 0.5),
+      uDT: U.mean(pick(useful, function (d) { return d.unc && d.unc.uDT; })),
+      liqLimitsPct: 100 * useful.filter(function (d) { return d.unc && d.unc.liqLimits; }).length / Math.max(useful.length, 1),
+      dTmlMean: U.mean(pick(useful, function (d) { return d.dTml; })),
+      fCorrMean: U.mean(pick(useful, function (d) { return d.fCorr; })),
+      jAirMean: U.mean(pick(useful, function (d) { return d.jAir; })),
+      stAirMean: U.mean(pick(useful, function (d) { return d.stAir; })),
+      dpAirMean: U.mean(pick(useful, function (d) { return d.dpAir; })),
+      dpCoolMean: U.mean(pick(useful, function (d) { return d.dpCool; })),
+      wFanMean: U.mean(pick(useful, function (d) { return d.wFan; })),
+      wPumpMean: U.mean(pick(useful, function (d) { return d.wPump; })),
+      wRamMean: U.mean(pick(useful, function (d) { return d.wRam; })),
+      fanShareMean: U.mean(pick(useful, function (d) { return d.fanShare; })),
+      /* razao das medias, nao media das razoes: em marcha lenta o
+         denominador vai a quase zero e a media das razoes dispara    */
       energy: 0
     };
+    /* figura de merito: calor rejeitado por watt gasto para mover os
+       dois fluidos, agregada sobre a parte util da coleta            */
+    var wSum = (isFinite(s.wFanMean) ? s.wFanMean : 0) +
+               (isFinite(s.wPumpMean) ? s.wPumpMean : 0) +
+               (isFinite(s.wRamMean) ? s.wRamMean : 0);
+    s.meritMean = wSum > 0.1 && isFinite(s.qMean) ? s.qMean / wSum : NaN;
+    s.wDriveMean = wSum;
+
     /* energia total rejeitada pelo radiador (MJ) via integracao trapezoidal */
     for (var i = 1; i < rows.length; i++) {
       var dt = rows[i].t - rows[i - 1].t;

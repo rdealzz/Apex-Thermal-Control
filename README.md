@@ -118,6 +118,28 @@ Nu     = C·Re^m·Pr^(1/3)                                               (lado a
 Nu     = 0,023·Re^0,8·Pr^0,3                                           (lado líquido, turbulento)
 ```
 
+A plataforma também propaga a incerteza dos instrumentos pela cadeia inteira, calcula a
+média logarítmica das diferenças de temperatura com o fator de correção implícito, e
+reporta o fator *j* de Colburn, o número de Stanton, a perda de carga dos dois lados e a
+potência gasta para mover os fluidos.
+
+### Um resultado que vale registrar
+
+Quando o líquido é o fluido de menor capacidade térmica, a vazão aparece no calor
+rejeitado **e** no calor máximo, e cancela: a efetividade se reduz a ΔT / (T_líquido −
+T_ar), função apenas de temperaturas. O parâmetro mais incerto da montagem — a vazão da
+bomba — não contamina o resultado principal nesse regime.
+
+Quando o ar limita, a vazão não cancela, e as duas incertezas de vazão entram inteiras. Na
+coleta de demonstração isso põe a efetividade em 0,432 ± 0,140 (32 %), e a barra de erro
+passa a ser dominada pelo lado do ar: reduzi-la exige um anemômetro, não um sensor melhor
+de temperatura. Baixar a incerteza da velocidade de face de 25 % para 5 % nos parâmetros
+leva a incerteza de ε de 32 % para 21 % — dá para ver o que o instrumento compraria antes
+de comprá-lo.
+
+O UA sai ainda pior, porque a inversão NTU(ε) é muito não-linear: cada 1 % de incerteza em
+ε vira ~1,4 % em NTU no ponto de operação da demonstração, e piora rápido conforme ε sobe.
+
 O modelo de previsão é uma regressão linear regularizada sobre janela deslizante. O alvo é
 a **variação** de temperatura no horizonte, não o valor absoluto. A validação usa blocos
 contíguos — a série temporal não é embaralhada, porque amostras vizinhas são quase
