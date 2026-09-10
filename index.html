@@ -890,6 +890,7 @@
     <div class="cluster-wrap">
       <canvas id="spdCluster" aria-label="Painel de instrumentos"></canvas>
     </div>
+    <div class="aux-wrap"><canvas id="spdAux" aria-label="Manômetros"></canvas></div>
     <div class="hud-strip" id="hudStrip"></div>
   </div>
 
@@ -932,19 +933,19 @@
   <div class="sec-head">
     <span class="sh-idx">S3</span>
     <h1>Dyno</h1>
-    <p class="sh-sub">Ensaio em rolo: a rotação sobe e as curvas do radiador são traçadas junto. É a mesma física da aba de análise, apresentada como uma passada de dinamômetro.</p>
+    <p class="sh-sub">Ensaio em rolo com os mapas da aba Tune. A potência é ficção; o veredito no fim usa o UA medido na coleta carregada para dizer se o radiador real aguentaria o que o mapa pede.</p>
   </div>
   <div class="hud-frame">
     <div class="dyno-head">
-      <div class="dyno-read"><span class="dr-lab">Potência térmica</span><span class="dr-val" id="dynoQ">--</span><span class="dr-u">kW</span></div>
-      <div class="dyno-read"><span class="dr-lab">Efetividade</span><span class="dr-val" id="dynoEps">--</span><span class="dr-u">ε</span></div>
-      <div class="dyno-read"><span class="dr-lab">Condutância</span><span class="dr-val" id="dynoUA">--</span><span class="dr-u">W/K</span></div>
+      <div class="dyno-read"><span class="dr-lab">Potência</span><span class="dr-val" id="dynoQ">--</span><span class="dr-u">cv</span></div>
+      <div class="dyno-read"><span class="dr-lab">Torque</span><span class="dr-val" id="dynoEps">--</span><span class="dr-u">N·m</span></div>
+      <div class="dyno-read"><span class="dr-lab">Calor a dissipar</span><span class="dr-val" id="dynoUA">--</span><span class="dr-u">kW</span></div>
       <div class="dyno-read"><span class="dr-lab">Rotação</span><span class="dr-val" id="dynoRpm">--</span><span class="dr-u">rpm</span></div>
       <button class="btn primary" id="btnDyno" style="margin-left:auto">Iniciar passada</button>
     </div>
     <div class="chart-box"><canvas id="dynoChart"></canvas></div>
     <div class="legend" id="legDyno"></div>
-    <div class="reading" id="dynoRead">Uma passada varre a rotação do motor de marcha lenta ao corte e recalcula, para cada rotação, a vazão da bomba, a velocidade do ar na face e o UA das correlações.</div>
+    <div class="reading" id="dynoRead">Uma passada varre a rotação de 1.200 ao corte, aplica os mapas de combustível, ignição, pressão e AFR, e no fim compara o calor que esse motor exigiria com o que o radiador da coleta carregada consegue dissipar.</div>
   </div>
 </section>
 
@@ -989,6 +990,7 @@
 <script src="assets/js/demo.js"></script>
 <script src="assets/js/explain.js"></script>
 <script src="assets/js/tasks.js"></script>
+<script src="assets/js/tune.js"></script>
 <script src="assets/js/speed.js"></script>
 <script src="assets/js/cmdk.js"></script>
 <script src="assets/js/app.js"></script>

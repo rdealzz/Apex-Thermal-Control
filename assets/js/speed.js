@@ -375,6 +375,95 @@
     });
   }
 
+  /* ============================================================
+     Manometros
+     ------------------------------------------------------------
+     Quatro mostradores menores embaixo do painel. Pressao de oleo e
+     de combustivel sao ficcao derivada do que a coleta tem de real
+     (indice de saude e vazao da bomba); pressao de turbo e AFR vem
+     direto dos mapas da bancada de remapeamento — mexer na tabela
+     move o ponteiro aqui, que e o que fecha o ciclo.
+     ============================================================ */
+  var geoAux = { w: 0, h: 0, ctx: null, face: null, dials: null, dirty: true, sig: null };
+  window.addEventListener('resize', function () { geoAux.dirty = true; }, { passive: true });
+
+  /* Mostrador pequeno nao comporta escala numerica: os numeros caem
+     em cima da leitura central. Ficam so as marcas, e o valor exato
+     e o digito no meio — que e para onde o olho vai de qualquer jeito. */
+  function auxSpecs(w, h) {
+    var R = Math.min(h * 0.38, w / 4 * 0.33);
+    var cy = h * 0.44;
+    var labelY = R * 1.30;
+    return [
+      { key: 'oil',   cx: w * 0.125, cy: cy, R: R, labelY: labelY, bezel: true,
+        min: 0, max: 8, label: 'OIL PRESS', unit: 'bar', color: '#2fe08a', ticks: 8, tickMajor: 2 },
+      { key: 'fuel',  cx: w * 0.375, cy: cy, R: R, labelY: labelY, bezel: true,
+        min: 0, max: 6, label: 'FUEL PRESS', unit: 'bar', color: '#12b6ff', ticks: 6, tickMajor: 2 },
+      { key: 'boost', cx: w * 0.625, cy: cy, R: R, labelY: labelY, bezel: true,
+        min: -1, max: 2.5, label: 'BOOST', unit: 'bar', color: '#ff8a1f',
+        redFrom: 1.6, ticks: 7, tickMajor: 2 },
+      { key: 'afr',   cx: w * 0.875, cy: cy, R: R, labelY: labelY, bezel: true,
+        min: 10, max: 18, label: 'AFR', unit: ':1', color: '#3ff0e0', ticks: 8, tickMajor: 2 }
+    ];
+  }
+
+  function auxValues(d) {
+    var TN = ATC.Tune;
+    var e = TN ? TN.engine(U.clamp(d.rpm, 800, 6400), U.clamp(d.load, 20, 100)) : null;
+    /* pressao de oleo cai com a saude do nucleo e sobe com a rotacao:
+       ficcao, mas ficcao presa a um numero real da coleta            */
+    var health = isFinite(d.health) ? U.clamp(d.health, 0.4, 1.2) : 1;
+    return {
+      oil: U.clamp(1.2 + 3.6 * (d.rpm / 6400) * health, 0, 8),
+      fuel: U.clamp(3.0 + 0.9 * (d.load / 100) + 0.4 * (d.vdotCool / 60), 0, 6),
+      boost: e ? e.boost : 0,
+      afr: e ? e.afr : 14.7
+    };
+  }
+
+  function drawAux(d) {
+    var cv = $('#spdAux');
+    if (!cv) return;
+    if (geoAux.dirty || !geoAux.ctx) {
+      var host = cv.parentNode;
+      var w = host.clientWidth || 800;
+      var h = Math.round(U.clamp(w * 0.18, 112, 190));
+      var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      cv.style.height = h + 'px';
+      geoAux.ctx = cv.getContext('2d');
+      geoAux.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      geoAux.w = w; geoAux.h = h; geoAux.sig = null;
+      geoAux.dials = auxSpecs(w, h);
+      var off = geoAux.face || (geoAux.face = document.createElement('canvas'));
+      off.width = cv.width; off.height = cv.height;
+      var oc = off.getContext('2d');
+      oc.setTransform(dpr, 0, 0, dpr, 0, 0);
+      oc.clearRect(0, 0, w, h);
+      geoAux.dials.forEach(function (x) { drawFace(oc, x); });
+      geoAux.dirty = false;
+    }
+
+    var v = auxValues(d);
+    var sig = U.br(v.oil, 2) + '|' + U.br(v.fuel, 2) + '|' + U.br(v.boost, 3) + '|' + U.br(v.afr, 2);
+    if (sig === geoAux.sig) return;
+    geoAux.sig = sig;
+
+    var ctx = geoAux.ctx;
+    ctx.clearRect(0, 0, geoAux.w, geoAux.h);
+    ctx.drawImage(geoAux.face, 0, 0, geoAux.w, geoAux.h);
+    geoAux.dials.forEach(function (x) {
+      var val = v[x.key];
+      var col = x.color;
+      if (x.key === 'boost' && val > 1.6) col = '#ff3b30';
+      if (x.key === 'afr' && (val < 11.5 || val > 15.5)) col = '#ffb020';
+      drawLive(ctx, {
+        cx: x.cx, cy: x.cy, R: x.R, min: x.min, max: x.max, value: val,
+        text: U.br(val, x.key === 'boost' || x.key === 'afr' ? 2 : 1), unit: x.unit, color: col
+      });
+    });
+  }
+
   /* fita de LEDs: acende conforme a rotacao se aproxima do corte */
   function buildLeds() {
     var strip = $('#shiftStrip');
@@ -573,6 +662,7 @@
     if (!tab || tab.hidden) return;
 
     drawCluster();
+    drawAux(d);
     paintLeds(dial.rpm ? dial.rpm.x : 0);
     /* as leituras digitais andam a 12 Hz. Um numero que troca sessenta
        vezes por segundo nao e lido por ninguem, e cada troca custa uma
@@ -587,7 +677,7 @@
   }
 
   SP.mount = function () {
-    geo.dirty = true;
+    geo.dirty = true; geoAux.dirty = true;
     buildLeds(); buildCells(); buildEcuRail();
     if (!stopFrame && M) stopFrame = M.onFrame(function (dt) { frame(dt); });
     SP.renderStatic();
@@ -602,9 +692,9 @@
      ============================================================ */
   var ECU = [
     { id: 'engine', l: 'Engine' }, { id: 'turbo', l: 'Turbo' },
-    { id: 'injectors', l: 'Injectors' }, { id: 'logger', l: 'Logger' },
-    { id: 'maps', l: 'Maps' }, { id: 'diag', l: 'Diagnostics' },
-    { id: 'telemetry', l: 'Telemetry' }
+    { id: 'injectors', l: 'Injectors' }, { id: 'tune', l: 'Tune' },
+    { id: 'logger', l: 'Logger' }, { id: 'maps', l: 'Maps' },
+    { id: 'diag', l: 'Diagnostics' }, { id: 'telemetry', l: 'Telemetry' }
   ];
   var ecuOpen = 'engine';
 
@@ -690,6 +780,11 @@
         'C_min = ' + U.br(d.Cmin, 0) + ' W/K  (' + (d.Ch <= d.Cc ? 'líquido' : 'ar') + ')\n' +
         'Nesse regime, aumentar a vazão do outro lado <span class="w">não muda quase nada</span>.</div>';
 
+    } else if (ecuOpen === 'tune') {
+      pane.innerHTML = tuneHtml();
+      wireTune();
+      return;
+
     } else if (ecuOpen === 'logger') {
       var last = rows.slice(-14);
       var lines = last.map(function (r) {
@@ -750,6 +845,202 @@
     if (M) M.reveal(pane.querySelectorAll('.ecu-tile'), 26);
   }
 
+  /* ============================================================
+     Tela de remapeamento
+     ------------------------------------------------------------
+     Uma tabela rotacao x carga que se edita celula a celula, com a
+     superficie do mapa ao lado e o resultado da mudanca aparecendo
+     na hora em potencia, torque e nos dois jeitos de estragar tudo.
+     Ficcao — mas ficcao com os compromissos certos.
+     ============================================================ */
+  var TSEL = { i: 4, j: 4 };
+
+  function tuneHtml() {
+    var TN = ATC.Tune;
+    if (!TN) return '<h3>Tune</h3><p class="ep-sub">Módulo indisponível.</p>';
+    var st = TN.state();
+    var key = TN.openMap();
+    var m = TN.maps[key];
+    var grid = st[key];
+
+    var h = '<h3>Tune</h3><p class="ep-sub">' + m.note + '</p>';
+
+    h += '<div class="tune-bar">';
+    Object.keys(TN.maps).forEach(function (k) {
+      h += '<button class="tune-tab" data-map="' + k + '" aria-selected="' + (k === key) + '">' +
+        TN.maps[k].name + '</button>';
+    });
+    h += '<span class="tune-sp"></span>';
+    Object.keys(TN.presets).forEach(function (k) {
+      h += '<button class="tune-preset" data-preset="' + k + '">' + TN.presets[k].name + '</button>';
+    });
+    h += '</div>';
+
+    h += '<div class="tune-wrap">';
+    h += '<div class="tune-grid-box"><table class="tune-grid"><thead><tr><th class="corner">carga \\ rpm</th>' +
+      TN.rpmAxis.map(function (r) { return '<th>' + U.br(r, 0) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    for (var j = TN.loadAxis.length - 1; j >= 0; j--) {
+      h += '<tr><th>' + U.br(TN.loadAxis[j], 0) + ' %</th>';
+      for (var i = 0; i < TN.rpmAxis.length; i++) {
+        var v = grid[j][i];
+        var t = (v - m.min) / Math.max(m.max - m.min, 1e-9);
+        var on = (i === TSEL.i && j === TSEL.j);
+        h += '<td class="tc' + (on ? ' on' : '') + '" data-i="' + i + '" data-j="' + j + '"' +
+          ' style="--t:' + t.toFixed(3) + '">' + U.br(v, m.dec) + '</td>';
+      }
+      h += '</tr>';
+    }
+    h += '</tbody></table>';
+    h += '<div class="tune-ctl">' +
+      '<button class="btn sm" data-adj="-1">−</button>' +
+      '<button class="btn sm" data-adj="1">+</button>' +
+      '<input type="number" id="tuneVal" step="' + m.step + '" value="' + grid[TSEL.j][TSEL.i].toFixed(m.dec) + '">' +
+      '<span class="tune-unit">' + m.unit + '</span>' +
+      '<button class="btn sm ghost" data-all="-1">− tudo</button>' +
+      '<button class="btn sm ghost" data-all="1">+ tudo</button>' +
+      '<button class="btn sm ghost" data-smooth="1">suavizar</button>' +
+      '<button class="btn sm ghost" data-reset="1">original</button>' +
+      '</div>' +
+      '<p class="tune-hint">Clique numa célula e use as setas do teclado para andar, + e − para ajustar. A superfície e a potência respondem na hora.</p>';
+    h += '</div>';
+    h += '<div class="tune-side">' +
+      '<div class="chart-box"><canvas id="tuneSurf"></canvas></div>' +
+      '<div id="tuneOut"></div></div>';
+    h += '</div>';
+    return h;
+  }
+
+  function tunePaint() {
+    var TN = ATC.Tune, G = ATC.Charts;
+    if (!TN || !app) return;
+    var key = TN.openMap(), m = TN.maps[key], grid = TN.state()[key];
+
+    G.surface($('#tuneSurf'), {
+      height: 300, z: grid, zMin: m.min, zMax: m.max,
+      title: 'Mapa de ' + m.name.toLowerCase(),
+      x: { min: TN.rpmAxis[0], max: TN.rpmAxis[TN.rpmAxis.length - 1],
+           fmt: function (v) { return U.br(v / 1000, 1) + 'k'; } },
+      y: { min: TN.loadAxis[0], max: TN.loadAxis[TN.loadAxis.length - 1],
+           fmt: function (v) { return U.br(v, 0); } },
+      xLabel: 'rotação (rpm)', yLabel: 'carga (%)', zLabel: m.name + ' (' + m.unit + ')',
+      zFmt: function (v) { return U.br(v, m.dec); }, zTicks: 4, contours: 7,
+      ramp: m.ramp, markerColor: '#ffffff',
+      marker: { x: TN.rpmAxis[TSEL.i], y: TN.loadAxis[TSEL.j], label: U.br(grid[TSEL.j][TSEL.i], m.dec) + ' ' + m.unit },
+      hint: 'arraste para girar'
+    });
+
+    var sw = TN.sweep();
+    var danger = sw.knockPct > 2 || sw.leanPct > 2;
+    var out = $('#tuneOut');
+    if (!out) return;
+    out.innerHTML =
+      '<div class="ecu-grid" style="margin-top:12px">' +
+      tile('POTÊNCIA MÁXIMA', U.br(sw.peakPower.power, 0), 'cv a ' + U.br(sw.peakPower.rpm, 0) + ' rpm',
+           danger ? 'warn' : 'good', sw.peakPower.power / 400) +
+      tile('TORQUE MÁXIMO', U.br(sw.peakTorque.torque, 0), 'N·m a ' + U.br(sw.peakTorque.rpm, 0) + ' rpm',
+           danger ? 'warn' : 'good', sw.peakTorque.torque / 500) +
+      '</div>' +
+      '<div class="tune-alert' + (danger ? ' bad' : ' ok') + '">' +
+      (sw.knockPct > 2
+        ? '<b>DETONAÇÃO</b> em ' + U.br(sw.knockPct, 0) + '% da faixa — o avanço passou do limite que esta pressão aguenta. Recue a ignição ou baixe a pressão.'
+        : sw.leanPct > 2
+          ? '<b>MISTURA POBRE</b> em ' + U.br(sw.leanPct, 0) + '% da faixa sob carga alta — falta combustível para o ar que está entrando. É assim que se derrete pistão.'
+          : '<b>MAPA LIMPO</b> — sem detonação e sem empobrecimento na faixa varrida.') +
+      '</div>';
+  }
+
+  function tuneSet(i, j, v) {
+    var TN = ATC.Tune, m = TN.maps[TN.openMap()];
+    var g = TN.state()[TN.openMap()];
+    g[j][i] = U.clamp(v, m.min, m.max);
+    TN.save();
+  }
+
+  function wireTune() {
+    var TN = ATC.Tune;
+    var pane = $('#ecuPane');
+    if (!pane || !TN) return;
+    tunePaint();
+
+    pane.addEventListener('click', function (ev) {
+      var m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+      var cell = ev.target.closest('.tc');
+      if (cell) {
+        TSEL.i = +cell.dataset.i; TSEL.j = +cell.dataset.j;
+        refreshTune(); if (A) A.play('tick'); return;
+      }
+      var tab = ev.target.closest('[data-map]');
+      if (tab) { TN.openMap(tab.dataset.map); renderEcu(); if (A) A.play('tick'); return; }
+      var pre = ev.target.closest('[data-preset]');
+      if (pre) {
+        TN.applyPreset(pre.dataset.preset);
+        renderEcu();
+        if (A) A.play('relay');
+        if (M) M.toast('Mapa ' + TN.presets[pre.dataset.preset].name + ' carregado', null, 2400);
+        return;
+      }
+      var adj = ev.target.closest('[data-adj]');
+      if (adj) { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] + (+adj.dataset.adj) * m.step); refreshTune(); return; }
+      var all = ev.target.closest('[data-all]');
+      if (all) {
+        var d = (+all.dataset.all) * m.step;
+        for (var j = 0; j < g.length; j++) for (var i = 0; i < g[j].length; i++) tuneSet(i, j, g[j][i] + d);
+        refreshTune(); if (A) A.play('press'); return;
+      }
+      if (ev.target.closest('[data-smooth]')) {
+        var cp = g.map(function (r) { return r.slice(); });
+        for (var j2 = 0; j2 < g.length; j2++) for (var i2 = 0; i2 < g[j2].length; i2++) {
+          var sum = 0, n = 0;
+          for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) {
+            var jj = j2 + dj, ii = i2 + di;
+            if (cp[jj] && isFinite(cp[jj][ii])) { sum += cp[jj][ii]; n++; }
+          }
+          tuneSet(i2, j2, sum / n);
+        }
+        refreshTune(); if (A) A.play('turbo'); return;
+      }
+      if (ev.target.closest('[data-reset]')) {
+        TN.reset(); renderEcu(); if (A) A.play('relay');
+        if (M) M.toast('Mapas de fábrica restaurados', null, 2200);
+      }
+    });
+
+    var val = document.getElementById('tuneVal');
+    if (val) val.addEventListener('change', function () {
+      tuneSet(TSEL.i, TSEL.j, parseFloat(val.value));
+      refreshTune();
+    });
+
+    pane.addEventListener('keydown', function (ev) {
+      var g = TN.state()[TN.openMap()], m = TN.maps[TN.openMap()];
+      var k = ev.key, moved = true;
+      if (k === 'ArrowRight') TSEL.i = Math.min(TSEL.i + 1, TN.rpmAxis.length - 1);
+      else if (k === 'ArrowLeft') TSEL.i = Math.max(TSEL.i - 1, 0);
+      else if (k === 'ArrowUp') TSEL.j = Math.min(TSEL.j + 1, TN.loadAxis.length - 1);
+      else if (k === 'ArrowDown') TSEL.j = Math.max(TSEL.j - 1, 0);
+      else if (k === '+' || k === '=') { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] + m.step); }
+      else if (k === '-' || k === '_') { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] - m.step); }
+      else moved = false;
+      if (moved) { ev.preventDefault(); refreshTune(); }
+    });
+    pane.setAttribute('tabindex', '0');
+  }
+
+  /* redesenha so a tabela e a lateral, sem remontar a tela inteira */
+  function refreshTune() {
+    var TN = ATC.Tune, m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+    var pane = $('#ecuPane');
+    pane.querySelectorAll('.tc').forEach(function (c) {
+      var i = +c.dataset.i, j = +c.dataset.j, v = g[j][i];
+      c.textContent = U.br(v, m.dec);
+      c.style.setProperty('--t', ((v - m.min) / Math.max(m.max - m.min, 1e-9)).toFixed(3));
+      c.classList.toggle('on', i === TSEL.i && j === TSEL.j);
+    });
+    var val = document.getElementById('tuneVal');
+    if (val) val.value = g[TSEL.j][TSEL.i].toFixed(m.dec);
+    tunePaint();
+  }
+
   function pad(s, n) { s = String(s); while (s.length < n) s = ' ' + s; return s; }
 
   function engineNotes(st, d) {
@@ -775,65 +1066,68 @@
     if (dyno.running) return;
     var st = S();
     if (!st || !st.proc) { if (M) M.toast('Carregue uma coleta primeiro', 'warn'); return; }
-    var T = ATC.Thermal, p = st.params, G = ATC.Charts;
+    var TN = ATC.Tune, G = ATC.Charts;
     var COL = app.colors();
 
-    /* ponto de operacao de referencia: media da parte util */
+    /* ponto termico de referencia: media da parte util da coleta */
     var rows = st.proc.rows.filter(function (d) { return !d.warmup && isFinite(d.eps); });
     if (!rows.length) rows = st.proc.rows;
-    var tHot = 0, tAmb = 0, n = 0;
-    rows.forEach(function (d) { if (isFinite(d.tHotIn)) { tHot += d.tHotIn; tAmb += d.tAmb; n++; } });
-    tHot /= n || 1; tAmb /= n || 1;
+    var tAmb = 0, n = 0;
+    rows.forEach(function (d) { if (isFinite(d.tAmb)) { tAmb += d.tAmb; n++; } });
+    tAmb /= n || 1;
+    /* A capacidade do radiador tem de ser avaliada na condicao do pico,
+       nao na media do ciclo urbano: la o ar mal passa pelo nucleo. A
+       condicao declarada e 100 km/h com ventilador, liquido a 100 C —
+       e o modelo usado carrega o fator de calibracao da coleta.      */
+    var vRef = 100, tHot = 100;
 
     dyno.running = true;
     $('#btnDyno').disabled = true;
     if (A) A.play('ignition');
 
-    var rpm0 = 800, rpm1 = 6300, dur = 3.0, t = 0;
-    var qs = [], eps = [], uas = [];
+    var rpm0 = 1200, rpm1 = 6400, dur = 3.0, t = 0;
+    var pw = [], tq = [], heat = [];
+    var peakP = 0, peakPRpm = 0, peakT = 0, peakTRpm = 0, peakHeat = 0, knock = false, lean = false;
 
     M.onFrame(function (dt) {
       t += dt;
       var f = U.clamp(t / dur, 0, 1);
-      /* a rotacao sobe como um motor sob carga: rapido no comeco,
-         arrastado perto do corte                                  */
+      /* a rotacao sobe como um motor sob carga no rolo */
       var rpm = rpm0 + (rpm1 - rpm0) * (1 - Math.pow(1 - f, 1.7));
-      var speed = U.clamp((rpm - 800) / (rpm1 - 800) * 150, 0, 150);
 
-      var cf = T.coolantFlow(rpm, tHot, p);
-      /* o eletroventilador sai de cena exatamente na velocidade em que
-         o ar de marcha iguala o que ele entrega — assim a curva nao
-         ganha um degrau que a fisica nao tem                          */
-      var vSwitch = p.vFan / Math.max(p.kRam, 1e-3) * 3.6;
-      var af = T.airFlow(speed, speed < vSwitch ? 1 : 0, tAmb, p);
-      var um = T.uaModel(af.mdot, tAmb, cf.mdot, tHot, p);
-      var Ch = cf.mdot * cf.prop.cp, Cc = af.mdot * af.prop.cp;
-      var Cmin = Math.min(Ch, Cc), Cmax = Math.max(Ch, Cc);
-      var Cr = Cmax > 0 ? Cmin / Cmax : 0;
-      var ntu = Cmin > 0 ? um.UA / Cmin : 0;
-      var e = T.epsCrossflow(ntu, Cr);
-      var q = e * Cmin * (tHot - tAmb) / 1000;
+      var e = TN ? TN.engine(rpm, 100) : { power: 0, torque: 0, heatFactor: 1, knock: false, lean: false };
+      /* Calor a dissipar: um motor a combustao joga no liquido algo da
+         ordem da propria potencia de eixo. E o gancho com a parte seria
+         — quanto mais missil, mais radiador ele exige.               */
+      var qNeed = e.power * 0.7355 * st.params.heatFrac;   // cv -> kW -> calor ao liquido
 
-      qs.push([rpm, q]); eps.push([rpm, e]); uas.push([rpm, um.UA]);
+      pw.push([rpm, e.power]); tq.push([rpm, e.torque]); heat.push([rpm, qNeed]);
+      if (e.power > peakP) { peakP = e.power; peakPRpm = rpm; }
+      if (e.torque > peakT) { peakT = e.torque; peakTRpm = rpm; }
+      if (qNeed > peakHeat) peakHeat = qNeed;
+      if (e.knock) knock = true;
+      if (e.lean) lean = true;
 
       var series = [
-        { name: 'calor rejeitado', color: COL.q, width: 2.2, area: COL.qArea,
-          data: qs, tipFmt: function (v) { return U.br(v, 1) + ' kW'; } },
-        { name: 'condutância UA', color: COL.gen, width: 1.7, axis: 'r', dash: true,
-          data: uas, tipFmt: function (v) { return U.br(v, 0) + ' W/K'; } }
+        { name: 'potência', color: COL.q, width: 2.2, area: COL.qArea,
+          data: pw, tipFmt: function (v) { return U.br(v, 0) + ' cv'; } },
+        { name: 'torque', color: COL.gen, width: 1.9, axis: 'r',
+          data: tq, tipFmt: function (v) { return U.br(v, 0) + ' N·m'; } },
+        { name: 'calor a dissipar', color: COL.pred, width: 1.5, dash: true,
+          data: heat, tipFmt: function (v) { return U.br(v, 0) + ' kW'; } }
       ];
       G.update($('#dynoChart'), {
         height: 300, series: series, xMin: rpm0, xMax: rpm1, yMin: 0,
-        xLabel: 'rotação do motor (rpm)', yLabel: 'calor rejeitado (kW)', yLabelRight: 'UA (W/K)',
+        xLabel: 'rotação do motor (rpm)', yLabel: 'potência (cv) e calor (kW)', yLabelRight: 'torque (N·m)',
         xFmt: function (v) { return U.br(v, 0); }, yFmt: function (v) { return U.br(v, 0); },
         yFmtRight: function (v) { return U.br(v, 0); },
         tipTitle: function (v) { return U.br(v, 0) + ' rpm'; }
       });
       if (app.legend) app.legend('#legDyno', series);
 
-      txtId('dynoQ', U.br(q, 1));
-      txtId('dynoEps', U.br(e, 3));
-      txtId('dynoUA', U.br(um.UA, 0));
+      txtId('dynoQ', U.br(e.power, 0));
+      txtId('dynoEps', U.br(e.torque, 0));
+      txtId('dynoUA', U.br(qNeed, 0));
       txtId('dynoRpm', U.br(rpm, 0));
       paintLeds(rpm);
 
@@ -841,19 +1135,68 @@
         dyno.running = false;
         $('#btnDyno').disabled = false;
         if (A) A.play('turbo');
-        var best = qs.reduce(function (a, b) { return b[1] > a[1] ? b : a; }, qs[0]);
-        var e0 = eps[0][1], e1 = eps[eps.length - 1][1];
-        var ganho = qs[0][1] > 0.01 ? best[1] / qs[0][1] : NaN;
-        $('#dynoRead').innerHTML = 'Pico de <b>' + U.br(best[1], 1) + ' kW</b> a <b>' + U.br(best[0], 0) +
-          ' rpm</b>' + (isFinite(ganho) ? ', <b>' + U.br(ganho, 1) + '×</b> o que saía na marcha lenta' : '') +
-          '. Repare no que a efetividade fez no mesmo intervalo: caiu de ' + U.br(e0, 3) + ' para ' + U.br(e1, 3) +
-          '. As duas coisas são verdade ao mesmo tempo — passa mais líquido, então sai mais calor no total, ' +
-          'mas cada quilo de líquido fica menos tempo no núcleo e volta menos resfriado. ' +
-          'Ponto de referência desta passada: líquido a ' + U.br(tHot, 1) + ' °C, ar a ' + U.br(tAmb, 1) + ' °C.';
+
+        /* O veredito: este nucleo aguenta o que o mapa pede? */
+        var T2 = ATC.Thermal, pp = st.params;
+        var af2 = T2.airFlow(vRef, 1, tAmb, pp);
+        var cf2 = T2.coolantFlow(peakPRpm, tHot, pp);
+        var um2 = T2.uaModel(af2.mdot, tAmb, cf2.mdot, tHot, pp);
+        var Cc2 = af2.mdot * af2.prop.cp, Ch2 = cf2.mdot * cf2.prop.cp;
+        var Cmin2 = Math.min(Ch2, Cc2), Cmax2 = Math.max(Ch2, Cc2);
+        var eps2 = T2.epsCrossflow(Cmin2 > 0 ? um2.UA / Cmin2 : 0, Cmax2 > 0 ? Cmin2 / Cmax2 : 0);
+        var qMaxReal = eps2 * Cmin2 * (tHot - tAmb) / 1000;
+        var uaReal = um2.UA;
+        var folga = qMaxReal - peakHeat;
+        /* Radiador de serie nao e dimensionado para potencia maxima
+           indefinida — e para um ciclo de uso. Entao a pergunta util
+           nao e "aguenta?", e "por quanto tempo?". A capacitancia
+           concentrada do proprio modelo termico responde: com o
+           desequilibrio de calor conhecido, quanto tempo o liquido
+           leva de 100 C ate o limite critico.                       */
+        var margem = qMaxReal > 0 ? folga / qMaxReal : NaN;
+        var segAte = folga < 0
+          ? st.params.cTh * (st.params.tCrit - tHot) / (-folga * 1000)
+          : Infinity;
+
+        var veredito;
+        if (knock) {
+          veredito = '<b style="color:var(--crit)">DETONAÇÃO NO MAPA.</b> A passada rodou com a ignição acima do limite que esta pressão aguenta, e a potência de pico caiu por causa disso. Recue o avanço na aba <b>Tune</b> antes de olhar qualquer outro número.';
+        } else if (lean) {
+          veredito = '<b style="color:var(--crit)">MISTURA POBRE SOB CARGA.</b> Falta combustível para o ar que o mapa está colocando. Suba o mapa de combustível na proporção da pressão antes de subir mais nada.';
+        } else if (margem >= 0.15) {
+          veredito = '<b style="color:var(--ok)">SOBRA RADIADOR.</b> No pico o mapa pede <b>' + U.br(peakHeat, 0) +
+            ' kW</b> e este núcleo entrega <b>' + U.br(qMaxReal, 0) + ' kW</b> a ' + U.br(vRef, 0) +
+            ' km/h com o líquido a ' + U.br(tHot, 0) + ' °C. Dá para segurar potência máxima sem a temperatura subir.';
+        } else if (margem >= -0.25) {
+          veredito = '<b style="color:var(--warn)">NO LIMITE.</b> O mapa pede <b>' + U.br(peakHeat, 0) +
+            ' kW</b> contra <b>' + U.br(qMaxReal, 0) + ' kW</b> de capacidade a ' + U.br(vRef, 0) +
+            ' km/h. Serve para arrancada, não para manter — é mais ou menos onde um carro de série vive, porque radiador de fábrica é dimensionado para ciclo de uso e não para potência máxima indefinida.';
+        } else {
+          veredito = '<b style="color:var(--crit)">FALTA RADIADOR.</b> O mapa pede <b>' + U.br(peakHeat, 0) +
+            ' kW</b> e o núcleo entrega <b>' + U.br(qMaxReal, 0) + ' kW</b> — faltam ' + U.br(-folga, 0) + ' kW.';
+          if (M) M.toast('Este mapa cozinha o motor', 'crit', 3600);
+        }
+        if (isFinite(segAte) && !knock && !lean) {
+          veredito += ' Com esse desequilíbrio e a capacitância térmica de ' +
+            U.br(st.params.cTh / 1000, 0) + ' kJ/K do conjunto, o líquido sai de ' + U.br(tHot, 0) +
+            ' °C e chega ao limite crítico de ' + U.br(st.params.tCrit, 0) + ' °C em <b>' +
+            U.mmss(segAte) + '</b> de pé embaixo.';
+        }
+
+        $('#dynoRead').innerHTML =
+          'Pico de <b>' + U.br(peakP, 0) + ' cv</b> a ' + U.br(peakPRpm, 0) + ' rpm e <b>' +
+          U.br(peakT, 0) + ' N·m</b> a ' + U.br(peakTRpm, 0) + ' rpm, com os mapas que estão na aba <b>Tune</b>. ' +
+          veredito +
+          ' <span style="color:var(--ink-4)">A potência é ficção. O UA de ' + U.br(uaReal, 0) +
+          ' W/K vem das correlações com o fator de calibração da coleta carregada, avaliadas a ' +
+          U.br(vRef, 0) + ' km/h e ' + U.br(tAmb, 0) + ' °C de ar' +
+          (pp.uaCalibrated ? '.' : ' — e a calibração ainda está pendente, então trate como ordem de grandeza.') +
+          '</span>';
         return false;
       }
     });
   }
+
   function txtId(id, v) { var e = document.getElementById(id); if (e) e.textContent = v; }
 
   /* ============================================================
@@ -940,7 +1283,7 @@
   SP.isOn = function () { return document.documentElement.dataset.mode === 'speed'; };
   SP.refresh = function () {
     if (!SP.isOn()) return;
-    geo.dirty = true;
+    geo.dirty = true; geoAux.dirty = true;
     nitro.charge = 0; nitro.ready = false; play.i = 0;
     SP.renderStatic();
   };

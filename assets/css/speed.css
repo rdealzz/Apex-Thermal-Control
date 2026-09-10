@@ -152,6 +152,8 @@
    pintura no bloco resolve na origem.                              */
 .cluster-wrap{position:relative;contain:paint}
 .cluster-wrap canvas{width:100%;display:block;will-change:transform}
+.aux-wrap{position:relative;contain:paint;margin-top:6px}
+.aux-wrap canvas{width:100%;display:block;will-change:transform}
 
 /* fita de LEDs de troca de marcha */
 .shift-strip{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
@@ -309,3 +311,64 @@
   text-shadow:0 0 20px color-mix(in srgb,var(--cyan) 40%,transparent);
 }
 .dyno-read .dr-u{font-size:11px;color:var(--ink-4)}
+
+
+/* ============================================================
+   8. BANCADA DE REMAPEAMENTO
+   ============================================================ */
+.tune-bar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.tune-bar .tune-sp{flex:1 1 20px}
+.tune-tab,.tune-preset{
+  appearance:none;border:1px solid var(--hair);background:var(--surface-2);cursor:pointer;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);padding:6px 11px;border-radius:7px;white-space:nowrap;
+  transform:translate3d(0,calc(var(--press,0) * 1.5px),0);will-change:transform;
+  transition:color .16s,background .16s,border-color .16s;
+}
+.tune-tab:hover,.tune-preset:hover{color:var(--ink);border-color:var(--acc)}
+.tune-tab[aria-selected="true"]{color:var(--acc-ink);background:var(--acc);border-color:var(--acc)}
+.tune-preset{border-style:dashed}
+
+.tune-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:1100px){.tune-wrap{grid-template-columns:1fr}}
+
+.tune-grid-box{min-width:0}
+.tune-grid{border-collapse:separate;border-spacing:2px;width:100%;font-family:var(--mono)}
+.tune-grid th{
+  background:transparent;border:0;font-size:9.5px;letter-spacing:.06em;color:var(--ink-4);
+  padding:3px 4px;text-align:center;position:static;text-transform:none;
+}
+.tune-grid th.corner{text-align:left;font-size:9px}
+/* a cor da celula vem do proprio valor: o mapa se le antes de ser lido */
+.tune-grid td.tc{
+  border:1px solid transparent;border-radius:5px;cursor:pointer;
+  padding:7px 4px;text-align:center;font-size:12px;font-weight:600;white-space:nowrap;
+  color:#fff;
+  background:
+    linear-gradient(0deg, rgba(0,0,0,.28), rgba(0,0,0,.28)),
+    hsl(calc(215 - var(--t,0) * 215), 78%, calc(28% + var(--t,0) * 26%));
+  transition:transform .12s ease,border-color .12s ease;
+}
+.tune-grid td.tc:hover{transform:scale(1.06);border-color:rgba(255,255,255,.5)}
+.tune-grid td.tc.on{
+  border-color:#fff;
+  box-shadow:0 0 0 1px rgba(255,255,255,.5), 0 0 14px rgba(255,255,255,.28);
+  transform:scale(1.06);
+}
+.tune-ctl{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.tune-ctl input{width:92px;text-align:center}
+.tune-ctl .tune-unit{font-family:var(--mono);font-size:11px;color:var(--ink-4);margin-right:6px}
+.tune-hint{font-size:11.2px;color:var(--ink-4);margin:10px 0 0}
+
+.tune-side{min-width:0}
+.tune-alert{
+  margin-top:12px;padding:11px 14px;border-radius:10px;font-size:12.5px;line-height:1.5;
+  border:1px solid var(--hair);background:var(--surface-2);color:var(--ink-2);
+}
+.tune-alert b{font-family:var(--mono);letter-spacing:.1em}
+.tune-alert.ok{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:var(--ok-soft)}
+.tune-alert.ok b{color:var(--ok)}
+.tune-alert.bad{border-color:color-mix(in srgb,var(--crit) 45%,transparent);background:var(--crit-soft)}
+.tune-alert.bad b{color:var(--crit);animation:knockPulse 1.1s ease-in-out infinite}
+@keyframes knockPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.tune-alert.bad b{animation:none}}
