@@ -1006,7 +1006,7 @@
           'Pico de <b>' + U.br(peakP, 0) + ' cv</b> a ' + U.br(peakPRpm, 0) + ' rpm e <b>' +
           U.br(peakT, 0) + ' N·m</b> a ' + U.br(peakTRpm, 0) + ' rpm, com os mapas que estão na tela <b>Remap</b>. ' +
           veredito +
-          ' <span style="color:var(--ink-4)">A potência é ficção. O UA de ' + U.br(uaReal, 0) +
+          ' <span style="color:var(--ink-4)">O UA de ' + U.br(uaReal, 0) +
           ' W/K vem das correlações' + (usingDemo() ? ' sobre a coleta de demonstração' : ' com o fator de calibração da coleta carregada') + ', avaliadas a ' +
           U.br(vRef, 0) + ' km/h e ' + U.br(tAmb, 0) + ' °C de ar' +
           (pp.uaCalibrated ? '.' : ' — e a calibração ainda está pendente, então trate como ordem de grandeza.') +
