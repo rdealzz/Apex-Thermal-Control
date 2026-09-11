@@ -355,7 +355,7 @@ T_ar), função apenas de temperaturas. O parâmetro mais incerto da montagem �
 bomba — não contamina o resultado principal nesse regime.
 
 Quando o ar limita, a vazão não cancela, e as duas incertezas de vazão entram inteiras. Na
-coleta de demonstração isso põe a efetividade em 0,432 ± 0,140 (32 %), e a barra de erro
+coleta de demonstração isso põe a efetividade em 0,461 ± 0,149 (32 %), e a barra de erro
 passa a ser dominada pelo lado do ar: reduzi-la exige um anemômetro, não um sensor melhor
 de temperatura. Baixar a incerteza da velocidade de face de 25 % para 5 % nos parâmetros
 leva a incerteza de ε de 32 % para 21 % — dá para ver o que o instrumento compraria antes
@@ -494,6 +494,33 @@ Duas decisões saíram de medição, não de gosto:
   (medido: 27 fps com, 61 fps sem). Os painéis passaram a usar cor translúcida, que no escuro lê igual e não custa
   nada. O desfoque de verdade ficou no cabeçalho e na paleta de comandos, que flutuam
   sobre conteúdo estático.
+
+## Critérios de aprovação técnica
+
+A memória de cálculo entregue na disciplina define sete critérios de aceitação, e o
+formulário de entrega define o oitavo. Eles estavam escritos como texto na aba Projeto e
+nunca eram confrontados com a coleta — que é pedir para descobrir na apresentação que um
+deles não fecha. Agora a aba **Análise térmica** os avalia:
+
+| # | Critério | Alvo |
+| --- | --- | --- |
+| C1 | Calor medido × previsto pelo modelo analítico | desvio < 20 % |
+| C2 | Efetividade fisicamente possível (0 < ε < 1) | ≤ 10 % das janelas descartadas |
+| C3 | Faixa esperada de efetividade | 0,40 a 0,70 |
+| C4 | Consistência ε–NTU × LMTD | divergência < 15 % |
+| C5 | Tendência física com a velocidade | Q̇ cresce e ε cai |
+| C6 | Balanço térmico fechado | nenhuma janela com Q̇ ≤ 0 |
+| C7 | Previsão no horizonte | MAE ≤ 2 °C |
+| C8 | Antecedência do alerta | ≥ 2 min |
+
+O que não pode ser verificado com a coleta aberta aparece como **pendente**, não como
+reprovado: um critério pendente é uma campanha de coleta que ainda falta, e dizer isso é
+mais útil do que deixar a linha em branco.
+
+O C2 mudou o cálculo, não só a apresentação. Janelas com ε fora de 0 a 1 não são um
+resultado ruim: são janelas inválidas, vindas de erro de medição ou de estimativa de vazão,
+e estavam entrando nas médias. Passam a ser descartadas e contadas — a fração descartada é
+que diz se a estimativa de vazão está aceitável.
 
 ## Itens pendentes
 

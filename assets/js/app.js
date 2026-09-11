@@ -909,6 +909,8 @@
     renderEpsSurface(useful);
     renderUncertainty(useful);
     renderCompact(useful);
+    renderCriteria();
+    renderSensitivity();
 
     var sBal = [
       { name: 'Calor gerado pelo motor (média 15 s)', color: COL.gen, width: 1.6, area: 'rgba(255,159,67,.16)',
@@ -993,6 +995,97 @@
      resultado, e o preco que se paga em potencia de acionamento
      para conseguir aquela troca.
      ============================================================ */
+  /* ============================================================
+     Critérios de aprovação técnica
+     ------------------------------------------------------------
+     A memória de cálculo define sete critérios e o formulário de
+     entrega define o oitavo. Estavam escritos na aba Projeto como
+     texto e nunca eram confrontados com a coleta — o que é pedir
+     para descobrir na apresentação que um deles não fecha.
+     ============================================================ */
+  function renderCriteria() {
+    var card = $('#critCard');
+    if (!card) return;
+    if (!S.sum) { card.hidden = true; return; }
+    card.hidden = false;
+    var r = T.criteria(S.proc, S.sum, S.fit, S.alerts, S.params);
+
+    $('#critHead').innerHTML =
+      '<span class="cq ok"><b>' + r.atende + '</b> atendidos</span>' +
+      '<span class="cq bad"><b>' + r.falha + '</b> não atendidos</span>' +
+      '<span class="cq mut"><b>' + r.pendente + '</b> pendentes</span>';
+
+    var LAB = { atende: 'ATENDE', falha: 'NÃO ATENDE', pendente: 'PENDENTE' };
+    $('#tblCrit').innerHTML =
+      '<thead><tr><th>#</th><th>Critério</th><th>Medido</th><th>Alvo</th><th>Situação</th></tr></thead><tbody>' +
+      r.itens.map(function (c) {
+        return '<tr class="cr-' + c.status + '"><td class="mono">' + c.id + '</td>' +
+          '<td>' + c.titulo + (c.nota ? '<br><span class="cr-n">' + c.nota + '</span>' : '') + '</td>' +
+          '<td class="num">' + c.valor + '</td>' +
+          '<td class="num">' + c.alvo + '</td>' +
+          '<td><span class="cr-b ' + c.status + '">' + LAB[c.status] + '</span></td></tr>';
+      }).join('') + '</tbody>';
+
+    var falhas = r.itens.filter(function (c) { return c.status === 'falha'; });
+    var pend = r.itens.filter(function (c) { return c.status === 'pendente'; });
+    var h = '';
+    if (r.falha === 0 && r.pendente === 0) {
+      h = '<b>Todos os critérios atendidos.</b> Com esta coleta o projeto fecha os oito critérios de aceitação declarados na memória de cálculo e no formulário de entrega.';
+    } else {
+      if (falhas.length) {
+        h += '<b>Não atendidos:</b> ' + falhas.map(function (c) { return c.id; }).join(', ') +
+          '. ' + falhas[0].id + ' — ' + falhas[0].titulo.toLowerCase() + ' — ficou em ' + falhas[0].valor +
+          ' contra o alvo de ' + falhas[0].alvo + '. ';
+      }
+      if (pend.length) {
+        h += '<b>Pendentes:</b> ' + pend.map(function (c) { return c.id; }).join(', ') +
+          ' — não há na coleta carregada o que é preciso para avaliá-los. ';
+      }
+      h += 'Um critério pendente não é um critério reprovado: é uma campanha de coleta que ainda falta.';
+    }
+    $('#critRead').innerHTML = h;
+  }
+
+  /* ============================================================
+     Sensibilidade da vazão de ar (seção 7 da memória)
+     ============================================================ */
+  function renderSensitivity() {
+    var card = $('#sensCard');
+    if (!card) return;
+    var rows = S.sum ? T.airSensitivity(S.sum, S.params) : null;
+    if (!rows) { card.hidden = true; return; }
+    card.hidden = false;
+    var nom = rows[Math.floor(rows.length / 2)];
+    function d(v, base) {
+      var pc = 100 * (v - base) / base;
+      return '<span class="cr-n">' + (pc >= 0 ? '+' : '−') + U.br(Math.abs(pc), 1) + ' %</span>';
+    }
+    $('#tblSens').innerHTML =
+      '<thead><tr><th>Grandeza</th>' +
+      rows.map(function (r) {
+        return '<th class="num">' + (r.f === 1 ? 'nominal' : (r.f > 1 ? '+' : '−') + U.br(Math.abs(100 * (r.f - 1)), 0) + ' %') + '</th>';
+      }).join('') + '</tr></thead><tbody>' +
+      [['Vazão de ar', 'mAir', 2, ' kg/s'], ['Condutância UA', 'ua', 0, ' W/K'],
+       ['C_mín', 'cMin', 0, ' W/K'], ['NTU', 'ntu', 3, ''],
+       ['Efetividade ε', 'eps', 3, ''], ['Calor trocado', 'q', 1, ' kW']].map(function (f) {
+        return '<tr><td>' + f[0] + '</td>' + rows.map(function (r) {
+          var v = f[1] === 'q' ? r.q / 1000 : r[f[1]];
+          var b = f[1] === 'q' ? nom.q / 1000 : nom[f[1]];
+          return '<td class="num">' + U.br(v, f[2]) + f[3] +
+            (r.f === 1 ? '' : '<br>' + d(v, b)) + '</td>';
+        }).join('') + '</tr>';
+      }).join('') + '</tbody>';
+
+    var lo = rows[0], hi = rows[rows.length - 1];
+    var dEps = 100 * Math.abs(hi.eps - lo.eps) / (2 * nom.eps);
+    var dQ = 100 * Math.abs(hi.q - lo.q) / (2 * nom.q);
+    $('#sensRead').innerHTML =
+      'Um erro de 20 % na vazão de ar produz cerca de <b>' + U.br(dEps, 0) +
+      ' %</b> na efetividade e <b>' + U.br(dQ, 0) + ' %</b> no calor calculado. ' +
+      'A propagação é atenuada porque UA e C_mín variam no mesmo sentido, e o NTU, que é a razão entre os dois, sente menos que qualquer um deles. ' +
+      'É por isso que a calibração experimental da vazão é o item de maior retorno do projeto: ela é a maior fonte de incerteza e a que mais se reduz com um ensaio simples.';
+  }
+
   function renderUncertainty(useful) {
     var card = $('#uncCard');
     if (!card) return;
@@ -1177,6 +1270,9 @@
     var fit = M.train(ds, { lambda: lam, split: split });
     S.fit = fit;
     S.dataset = ds;
+    /* o painel de criterios olha o ajuste e os alertas; sem isto ele
+       so se atualizaria na proxima vez que a aba fosse recalculada */
+    renderCriteria();
 
     if (!fit.ok) {
       $('#iaEmpty').hidden = false;
@@ -1340,6 +1436,7 @@
     S.params.leadReq = parseFloat($('#inLead').value) || S.params.leadReq;
     persistParams();
     S.alerts = M.alerts(S.proc, S.fit, S.params);
+    renderCriteria();
   }
 
   function renderAlerts() {

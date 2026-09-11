@@ -62,11 +62,15 @@
   T.defaults = function () {
     return {
       // --- geometria do radiador (nucleo) ---
-      coreW: 0.620,        // m   largura do nucleo
+      /* Geometria conforme a secao 4.2 da memoria de calculo: area
+         frontal de 0,24 m2 (0,60 x 0,40), matriz de 26 mm e area de
+         troca do lado do ar de 9,4 m2. Sao estimativas de projeto e
+         devem ser substituidas pela medicao do radiador real. */
+      coreW: 0.600,        // m   largura do nucleo
       coreH: 0.400,        // m   altura do nucleo
       coreD: 0.026,        // m   profundidade do nucleo
       sigma: 0.55,         // -   razao de area livre de escoamento do ar
-      areaDens: 1200,      // m2/m3 densidade de area do lado ar
+      areaDens: 1506,      // m2/m3 densidade de area do lado ar (A_ar = 9,4 m2)
       finEff: 0.85,        // -   eficiencia global da superficie aletada
       nTubes: 34,          // -   numero de tubos planos
       tubeW: 0.018,        // m   largura interna do tubo plano
@@ -75,9 +79,9 @@
       wallT: 0.0003,       // m   espessura da parede do tubo
 
       // --- lado ar ---
-      kRam: 0.30,          // -   fracao da velocidade do veiculo na face do radiador
+      kRam: 0.25,          // -   fator de bloqueio da grade e do condensador (k_bloq da memoria)
       vFan: 3.0,           // m/s velocidade de face adicional com ventilador ligado
-      cAir: 0.25,          // -   coeficiente C da correlacao Nu = C Re^m Pr^(1/3)
+      cAir: 0.26,          // -   coeficiente C da correlacao Nu = C Re^m Pr^(1/3)
       uaScale: 1.00,       // -   fator de calibracao do UA teorico (ajustado pelos dados)
       uaCalibrated: 0,     // 0/1 indica se uaScale veio de calibracao contra dados medidos
       mAir: 0.60,          // -   expoente m
@@ -111,6 +115,11 @@
       fjRatio: 4.0,        // -   razao f/j tipica de aletas persianadas
       etaFan: 0.35,        // -   rendimento do conjunto eletroventilador
       etaPump: 0.55,       // -   rendimento da bomba d'agua
+
+      // --- criterios de aceitacao tecnica ---
+      epsRefLo: 0.40,      // -   faixa de referencia de efetividade (limite inferior)
+      epsRefHi: 0.70,      // -   faixa de referencia de efetividade (limite superior)
+      maeTarget: 2.0,      // C   erro medio absoluto maximo aceito na previsao
 
       // --- limites de alarme ---
       tCrit: 105,          // C   limite critico do liquido
@@ -588,9 +597,17 @@
   /* ---------- estatisticas agregadas ---------- */
   T.summary = function (proc) {
     var rows = proc.rows;
-    var useful = rows.filter(function (d) {
+    /* Candidatas: fora do aquecimento, com termostato aberto o
+       bastante e com potencial de troca que valha a pena. */
+    var cand = rows.filter(function (d) {
       return !d.warmup && isFinite(d.eps) && d.qMax > 500 && d.tStatFrac > 0.3;
     });
+    /* Criterio C2 da memoria de calculo: efetividade fora de 0 < e < 1
+       nao e um resultado ruim, e uma janela invalida — vem de erro de
+       medicao ou de estimativa de vazao, e entrava nas medias puxando
+       tudo. Sai da amostra, mas fica contada: a fracao descartada e
+       que diz se a estimativa de vazao esta aceitavel.              */
+    var useful = cand.filter(function (d) { return d.eps > 0 && d.eps < 1; });
     var pick = function (arr, f) { return arr.map(f).filter(isFinite); };
     var s = {
       n: rows.length,
@@ -671,7 +688,164 @@
       };
     }).filter(function (r) { return r.n > 0; });
 
+    /* --- grandezas que os criterios de aceitacao pedem --- */
+    /* C1: o calor medido pelo lado do liquido contra o previsto pelo
+       modelo analitico no mesmo ponto de operacao */
+    var qm = [];
+    for (var k = 0; k < useful.length; k++) {
+      var d2 = useful[k];
+      if (!(d2.uaModel > 0) || !(d2.Cmin > 0) || !isFinite(d2.qMax)) continue;
+      qm.push(T.epsCrossflow(d2.uaModel / d2.Cmin, d2.Cr) * d2.qMax);
+    }
+    s.qModelMean = U.mean(qm);
+    s.qDevRel = (isFinite(s.qModelMean) && s.qMean > 0)
+      ? Math.abs(s.qModelMean - s.qMean) / s.qMean : NaN;
+
+    /* C2/C6: janelas descartadas por efetividade impossivel, e balanco */
+    s.nCand = cand.length;
+    s.nEpsOut = cand.length - useful.length;
+    s.epsOutPct = cand.length ? 100 * s.nEpsOut / cand.length : NaN;
+    s.nBalanceBad = useful.filter(function (d) { return !(d.q > 0 && d.dT > 0); }).length;
+
+    /* C4: quanto o UA por media logaritmica se afasta do UA por eps-NTU.
+       Com a temperatura de saida do ar vinda do proprio balanco, isto e
+       uma checagem de consistencia interna, nao uma medida independente */
+    s.lmtdDevRel = isFinite(s.fCorrMean) ? Math.abs(s.fCorrMean - 1) : NaN;
+
     return s;
+  };
+
+  /* ============================================================
+     Criterios de aceitacao tecnica
+     ------------------------------------------------------------
+     Sao os sete criterios da secao 8 da memoria de calculo, mais o
+     de antecedencia do alerta do formulario de entrega. Cada um
+     devolve o valor medido, o alvo e o veredito. O que nao pode ser
+     avaliado com a coleta carregada e devolvido como pendente — o
+     que tambem e informacao: diz o que ainda falta coletar.
+     ============================================================ */
+  T.criteria = function (proc, s, fit, alerts, p) {
+    var out = [];
+    function add(id, titulo, valor, alvo, ok, nota) {
+      out.push({
+        id: id, titulo: titulo, valor: valor, alvo: alvo,
+        status: ok === null ? 'pendente' : (ok ? 'atende' : 'falha'),
+        nota: nota || ''
+      });
+    }
+    var temUteis = s && s.nUseful > 0;
+
+    add('C1', 'Medição × modelo analítico',
+      isFinite(s.qDevRel) ? U.br(100 * s.qDevRel, 1) + ' %' : '—',
+      'desvio < 20 %',
+      isFinite(s.qDevRel) ? s.qDevRel < 0.20 : null,
+      isFinite(s.qModelMean)
+        ? 'Q̇ medido ' + U.br(s.qMean / 1000, 1) + ' kW contra ' + U.br(s.qModelMean / 1000, 1) + ' kW do modelo.'
+        : 'Precisa de janelas úteis com UA teórico calculado.');
+
+    add('C2', 'Efetividade fisicamente possível',
+      isFinite(s.epsOutPct) ? U.br(s.epsOutPct, 1) + ' %' : '—',
+      '≤ 10 % das janelas',
+      isFinite(s.epsOutPct) ? s.epsOutPct <= 10 : null,
+      isFinite(s.epsOutPct)
+        ? s.nEpsOut + ' de ' + s.nCand + ' janelas saíram de 0 < ε < 1 e foram descartadas das médias. ε ≥ 1 é erro de medição ou de estimativa de vazão, não desempenho.'
+        : '');
+
+    add('C3', 'Faixa esperada de efetividade',
+      isFinite(s.epsMean) ? U.br(s.epsMean, 3) : '—',
+      U.br(p.epsRefLo, 2) + ' a ' + U.br(p.epsRefHi, 2),
+      isFinite(s.epsMean) ? (s.epsMean >= p.epsRefLo && s.epsMean <= p.epsRefHi) : null,
+      'Faixa de referência de radiadores automotivos de fluxo cruzado. Ajustável nos parâmetros.');
+
+    add('C4', 'Consistência ε–NTU × LMTD',
+      isFinite(s.lmtdDevRel) ? U.br(100 * s.lmtdDevRel, 1) + ' %' : '—',
+      'divergência < 15 %',
+      isFinite(s.lmtdDevRel) ? s.lmtdDevRel < 0.15 : null,
+      'A temperatura de saída do ar vem do próprio balanço, então isto é consistência interna, não medida independente.');
+
+    /* C5: com mais velocidade, mais calor e menos efetividade */
+    var reg = (s.byRegime || []).filter(function (r) { return isFinite(r.eps) && isFinite(r.q); });
+    var tendOk = null, tendTxt = '—';
+    if (reg.length >= 2) {
+      var prim = reg[0], ult = reg[reg.length - 1];
+      var subiuQ = ult.q > prim.q, caiuEps = ult.eps < prim.eps;
+      tendOk = subiuQ && caiuEps;
+      tendTxt = 'Q̇ ' + U.br(prim.q / 1000, 1) + ' → ' + U.br(ult.q / 1000, 1) +
+        ' kW · ε ' + U.br(prim.eps, 3) + ' → ' + U.br(ult.eps, 3);
+    }
+    add('C5', 'Tendência física com a velocidade', tendTxt,
+      'Q̇ cresce e ε cai',
+      tendOk,
+      reg.length >= 2
+        ? 'De ' + reg[0].regime.toLowerCase() + ' para ' + reg[reg.length - 1].regime.toLowerCase() +
+          '. Mais vazão de ar eleva C_mín mais depressa que UA, o NTU cai e a efetividade cai com ele.'
+        : 'Precisa de pelo menos dois regimes distintos na mesma coleta.');
+
+    add('C6', 'Balanço térmico fechado',
+      temUteis ? s.nBalanceBad + ' de ' + s.nUseful : '—',
+      'nenhuma aberta',
+      temUteis ? s.nBalanceBad === 0 : null,
+      'Janelas com Q̇ ≤ 0 ou temperatura de saída maior que a de entrada.');
+
+    var alvoMae = p.maeTarget === undefined ? 2 : p.maeTarget;
+    add('C7', 'Previsão no horizonte',
+      fit && fit.test ? U.br(fit.test.mae, 2) + ' °C' : '—',
+      'MAE ≤ ' + U.br(alvoMae, 1) + ' °C',
+      fit && fit.test ? fit.test.mae <= alvoMae : null,
+      fit ? 'Validação cruzada em blocos contíguos, sem embaralhar a série.'
+          : 'O modelo é treinado ao abrir a aba Previsão — ou a coleta é curta demais para separar treino e validação.');
+
+    var lead = alerts && isFinite(alerts.leadMean) ? alerts.leadMean : NaN;
+    add('C8', 'Antecedência do alerta',
+      isFinite(lead) ? U.mmss(lead) : '—',
+      '≥ ' + U.mmss(p.leadReq),
+      isFinite(lead) ? lead >= p.leadReq : null,
+      isFinite(lead) ? '' : 'Só verificável numa sessão em que a temperatura atinja o limite crítico.');
+
+    var avaliados = out.filter(function (c) { return c.status !== 'pendente'; });
+    return {
+      itens: out,
+      atende: avaliados.filter(function (c) { return c.status === 'atende'; }).length,
+      falha: avaliados.filter(function (c) { return c.status === 'falha'; }).length,
+      pendente: out.length - avaliados.length,
+      total: out.length
+    };
+  };
+
+  /* ============================================================
+     Sensibilidade da vazao de ar
+     ------------------------------------------------------------
+     A secao 7 da memoria pede o efeito de um erro de +/-20 % na
+     estimativa da vazao de ar. Como UA e C_min variam no mesmo
+     sentido, parte do efeito se cancela no NTU — e mostrar isso e
+     metade do valor da tabela.
+     ============================================================ */
+  T.airSensitivity = function (s, p, fracs) {
+    if (!s || !isFinite(s.qMean) || !(s.nUseful > 0)) return null;
+    var tHot = s.ectMeanUseful, tAmb = s.ambMean;
+    if (!isFinite(tHot) || !isFinite(tAmb) || tHot - tAmb < 1) return null;
+    /* ponto de operacao medio: o ar sai da vazao media observada, o
+       liquido da vazao media que o modelo atribuiu aquela rotacao */
+    var propA = T.air(tAmb, p.pAtm), propL = T.coolant(tHot);
+    /* reconstroi as vazoes a partir das taxas de capacidade medias */
+    var cMin = isFinite(s.ntuMean) && s.ntuMean > 0 ? s.uaMean / s.ntuMean : NaN;
+    if (!isFinite(cMin) || cMin <= 0) return null;
+    var cMax = cMin / Math.max(s.crMean, 1e-6);
+    /* nesta faixa o ar e o lado de menor capacidade na maior parte do
+       tempo; a tabela e montada sobre essa hipotese, verificada em H9 */
+    var mAir0 = cMin / propA.cp;
+    var mCool = cMax / propL.cp;
+    return (fracs || [0.8, 1.0, 1.2]).map(function (f) {
+      var mAir = mAir0 * f;
+      var um = T.uaModel(mAir, tAmb, mCool, tHot, p);
+      var Cc = mAir * propA.cp, Ch = mCool * propL.cp;
+      var cm = Math.min(Cc, Ch), cx = Math.max(Cc, Ch);
+      var ntu = um.UA / cm, eps = T.epsCrossflow(ntu, cm / cx);
+      return {
+        f: f, mAir: mAir, ua: um.UA, cMin: cm, ntu: ntu, eps: eps,
+        q: eps * cm * (tHot - tAmb)
+      };
+    });
   };
 
   ATC.Thermal = T;

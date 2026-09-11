@@ -507,6 +507,21 @@
     </div>
   </div>
 
+  <div class="card lift ticked" id="critCard" hidden>
+    <h2>Critérios de aprovação técnica</h2>
+    <p class="hint">Os sete critérios da memória de cálculo mais o de antecedência do alerta, avaliados contra a coleta carregada. O que não pode ser verificado com estes dados aparece como pendente — o que também é resultado: diz o que ainda falta coletar.</p>
+    <div class="crit-head" id="critHead"></div>
+    <div class="tbl-scroll"><table id="tblCrit"></table></div>
+    <div class="reading" id="critRead"></div>
+  </div>
+
+  <div class="card lift ticked" id="sensCard" hidden>
+    <h2>Sensibilidade à vazão de ar</h2>
+    <p class="hint">A vazão de ar não é medida: é estimada da velocidade e da área frontal, e é a maior fonte de incerteza do projeto. A tabela mostra o efeito de um erro de ±20 % nela, no ponto de operação médio da coleta.</p>
+    <div class="tbl-scroll"><table id="tblSens"></table></div>
+    <div class="reading" id="sensRead"></div>
+  </div>
+
   <!-- sem "lift": a superficie eps-NTU aqui dentro tambem se arrasta com o
        ponteiro, e o balanco do cartao rouba o arrasto dela -->
   <div class="card" id="anaResults" hidden>
