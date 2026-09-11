@@ -77,7 +77,7 @@
    Vidro so onde o fundo fica parado.
 
    backdrop-filter obriga o navegador a refazer o desfoque sempre
-   que qualquer coisa atras muda. Com o cluster desenhando a 60 Hz
+   que qualquer coisa atras muda. Com os mostradores a 60 Hz
    isso significa reprocessar o fundo de cada painel a cada quadro:
    medido, custava 34 dos 60 quadros por segundo. Os paineis usam
    uma cor translucida, que no escuro le igual e nao custa nada; o
@@ -131,31 +131,9 @@
 .hud-frame::before{left:9px;top:9px;border-left:1.5px solid;border-top:1.5px solid;border-top-left-radius:5px}
 .hud-frame::after{right:9px;bottom:9px;border-right:1.5px solid;border-bottom:1.5px solid;border-bottom-right-radius:5px}
 
-.hud-card{
-  border:1px solid var(--hair);border-radius:var(--r);padding:15px 16px;margin-bottom:14px;
-  background:color-mix(in srgb,var(--surface) 94%,transparent);
-  box-shadow:var(--sh-2);
-}
-.hud-card-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
-.hud-card-h .hc-t{
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--acc);
-}
-.hud-card-h .hc-s{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
-
 /* ============================================================
-   4. CLUSTER
+   4. FITA DE LEDS DE TROCA
    ============================================================ */
-/* O cluster redesenha a 60 Hz. Sem camada propria, cada repintura
-   dele suja os vizinhos e o navegador re-rasteriza o cartao inteiro —
-   medido, o grafico de telemetria ao lado custava 10 quadros por
-   segundo sem nunca ser redesenhado. Promover o canvas e conter a
-   pintura no bloco resolve na origem.                              */
-.cluster-wrap{position:relative;contain:paint}
-.cluster-wrap canvas{width:100%;display:block;will-change:transform}
-.aux-wrap{position:relative;contain:paint;margin-top:6px}
-.aux-wrap canvas{width:100%;display:block;will-change:transform}
-
-/* fita de LEDs de troca de marcha */
 .shift-strip{display:flex;gap:5px;justify-content:center;margin-bottom:14px}
 .shift-strip .led{
   width:100%;max-width:40px;height:6px;border-radius:3px;
@@ -191,112 +169,29 @@
 }
 .led-tip b{color:var(--acc);font-weight:600}
 
-/* leituras digitais embaixo do cluster */
-.hud-strip{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
-  margin-top:14px;background:var(--hair);border:1px solid var(--hair);border-radius:var(--r-sm);overflow:hidden;
-}
-.hud-cell{background:var(--surface);padding:10px 13px;position:relative}
-.hud-cell .hl{
-  font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-4);
-}
-.hud-cell .hv{
-  font-family:var(--mono);font-size:19px;font-weight:600;color:var(--ink);margin-top:3px;letter-spacing:-.02em;
-}
-.hud-cell .hu{font-size:11px;color:var(--ink-4);margin-left:3px}
-.hud-cell .hs{font-size:10.5px;color:var(--ink-4);margin-top:2px;height:14px}
-.hud-cell.alarm{background:color-mix(in srgb,var(--crit) 14%,var(--surface))}
-.hud-cell.alarm .hv{color:var(--crit)}
-.hud-cell.good .hv{color:var(--ok)}
-.hud-cell.boost .hv{color:var(--boost)}
-
 /* ============================================================
-   5. NITRO
+   5. TELA PRINCIPAL — REMAP
+   ------------------------------------------------------------
+   Herdeira das telas da antiga ECU: as pecas (ladrilho, bloco de
+   codigo, subtitulo) sobreviveram porque eram boas; o trilho de
+   oito telas e que nao era.
    ============================================================ */
-.nitro-card{display:flex;flex-direction:column}
-.nitro-bar{
-  height:16px;border-radius:9px;background:var(--surface-3);border:1px solid var(--hair);
-  overflow:hidden;position:relative;
-}
-.nitro-fill{
-  height:100%;width:100%;border-radius:8px;transform:scaleX(0);transform-origin:left center;
-  background:linear-gradient(90deg,var(--acc),var(--cyan));
-  box-shadow:0 0 20px color-mix(in srgb,var(--cyan) 55%,transparent);
-}
-.nitro-bar.full .nitro-fill{background:linear-gradient(90deg,var(--boost),#ffd166)}
-.nitro-hint{font-size:11.8px;color:var(--ink-3);margin:11px 0 14px}
-.nitro-foot{font-size:10.5px;color:var(--ink-4);margin:9px 0 0;text-align:center}
-.nitro-btn{
-  width:100%;justify-content:center;font-family:var(--mono);letter-spacing:.24em;font-weight:700;
-  margin-top:auto;
-  --btn-face-a:color-mix(in srgb,var(--boost) 84%,white);
-  --btn-face-b:var(--boost);
-  --btn-edge:#8a4300;--btn-ink:#1a0d00;--btn-rim:rgba(255,255,255,.4);
-}
-.nitro-btn:disabled{--btn-face-a:var(--surface-3);--btn-face-b:var(--surface-2);--btn-ink:var(--ink-4);--btn-edge:var(--hair)}
-.nitro-card.ready .nitro-btn{animation:nitroPulse 1.5s ease-in-out infinite}
-@keyframes nitroPulse{
-  0%,100%{box-shadow:0 var(--depth) 0 -1px var(--btn-edge), 0 0 0 0 rgba(255,138,31,.45)}
-  50%{box-shadow:0 var(--depth) 0 -1px var(--btn-edge), 0 0 0 12px rgba(255,138,31,0)}
-}
-#nitroState{color:var(--ink-3)}
-.nitro-card.ready #nitroState{color:var(--boost)}
-
-/* estouro do nitro: uma camada so, que cresce e some */
-.nitro-flash{
-  position:fixed;inset:0;z-index:150;pointer-events:none;
-  background:radial-gradient(circle at 50% 62%, rgba(255,214,102,.85), rgba(255,138,31,.35) 26%, transparent 62%);
-  opacity:0;animation:nitroBlast .72s cubic-bezier(.15,.8,.3,1) forwards;
-}
-@keyframes nitroBlast{
-  0%{opacity:0;transform:scale(.4)}
-  16%{opacity:1}
-  100%{opacity:0;transform:scale(1.9)}
-}
-.spark{
-  position:fixed;width:4px;height:4px;border-radius:50%;z-index:151;pointer-events:none;
-  background:var(--boost);box-shadow:0 0 10px var(--boost);
-}
-@media (prefers-reduced-motion:reduce){
-  .nitro-card.ready .nitro-btn{animation:none}
-  .nitro-flash{animation-duration:.24s}
-}
-
-/* ============================================================
-   6. ECU
-   ============================================================ */
-.ecu-shell{
-  display:grid;grid-template-columns:186px minmax(0,1fr);gap:0;
+.remap-shell{
   border:1px solid var(--hair-strong);border-radius:var(--r-lg);overflow:hidden;
   background:color-mix(in srgb,var(--surface) 94%,transparent);
   box-shadow:var(--sh-3);
 }
-@media (max-width:820px){.ecu-shell{grid-template-columns:1fr}}
-.ecu-rail{
-  border-right:1px solid var(--hair);padding:12px;display:flex;flex-direction:column;gap:3px;
-  background:color-mix(in srgb,var(--canvas-2) 60%,transparent);
+.remap-pane{padding:18px 20px;min-height:340px}
+.remap-live{margin-top:26px}
+.remap-live h2{
+  font-size:15px;letter-spacing:-.01em;margin:0 0 4px;
 }
-@media (max-width:820px){
-  .ecu-rail{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--hair)}
-}
-.ecu-rail button{
-  appearance:none;border:0;background:transparent;cursor:pointer;text-align:left;
-  font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--ink-3);padding:9px 11px;border-radius:8px;white-space:nowrap;
-  display:flex;align-items:center;gap:9px;
-  transform:translate3d(0,calc(var(--press,0) * 1.5px),0);will-change:transform;
-  transition:color .18s,background .18s;
-}
-.ecu-rail button .e-led{width:5px;height:5px;border-radius:50%;background:var(--hair-strong);flex:0 0 auto;transition:background .2s,box-shadow .2s}
-.ecu-rail button:hover{color:var(--ink-2);background:color-mix(in srgb,var(--acc) 7%,transparent)}
-.ecu-rail button[aria-selected="true"]{color:var(--acc);background:var(--acc-soft)}
-.ecu-rail button[aria-selected="true"] .e-led{background:var(--acc);box-shadow:0 0 8px var(--acc)}
-.ecu-pane{padding:18px 20px;min-height:340px}
-.ecu-pane h3{
+.remap-live .hint{margin:0 0 14px;max-width:82ch}
+.remap-pane h3{
   font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
   color:var(--acc);margin-bottom:4px;
 }
-.ecu-pane .ep-sub{font-size:12.5px;color:var(--ink-3);margin:0 0 16px;max-width:74ch}
+.remap-pane .ep-sub{font-size:12.5px;color:var(--ink-3);margin:0 0 16px;max-width:74ch}
 .ecu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
 .ecu-tile{
   border:1px solid var(--hair);border-radius:10px;padding:11px 13px;background:color-mix(in srgb,var(--surface-2) 70%,transparent);
@@ -415,20 +310,21 @@
   grid-template-columns:repeat(12,minmax(0,1fr));
   align-items:start;
 }
-.ck-tach{grid-column:span 5}
+/* Remap: pressao e mistura, quatro modulos por linha */
 .ck-boost{grid-column:span 3}
-.ck-afr{grid-column:span 4}
-.ck-fuel{grid-column:span 5}
+.ck-afr{grid-column:span 3}
+.ck-fuel{grid-column:span 3}
 .ck-inj{grid-column:span 3}
-.ck-sens{grid-column:span 4}
-.ck-turbo{grid-column:span 4}
-.ck-log{grid-column:span 8}
+.ck-turbo{grid-column:span 12}
+/* Bancada: motor, barramento, gravacao e calibracao */
+.ck-tach{grid-column:span 5}
+.ck-sens{grid-column:span 7}
+.ck-log{grid-column:span 12}
 .ck-cal{grid-column:span 12}
 @media (max-width:1180px){
-  .ck-tach{grid-column:span 7}.ck-boost{grid-column:span 5}
-  .ck-afr{grid-column:span 6}.ck-fuel{grid-column:span 6}
-  .ck-inj{grid-column:span 5}.ck-sens{grid-column:span 7}
-  .ck-turbo{grid-column:span 5}.ck-log{grid-column:span 7}
+  .ck-boost{grid-column:span 6}.ck-afr{grid-column:span 6}
+  .ck-fuel{grid-column:span 6}.ck-inj{grid-column:span 6}
+  .ck-tach{grid-column:span 12}.ck-sens{grid-column:span 12}
 }
 @media (max-width:760px){.ck-grid>*{grid-column:span 12!important}}
 
@@ -543,9 +439,15 @@
 }
 .knob.wide{padding-inline:12px;letter-spacing:.12em}
 
+/* o modulo de pressao e largo agora: os potenciometros em colunas
+   em vez de uma pilha estreita de quatro */
+.ck-turbo .pot{display:inline-flex;width:calc(50% - 7px);margin-right:10px}
+@media (max-width:760px){.ck-turbo .pot{width:100%;margin-right:0}}
+.ck-turbo .pot-l{min-width:132px}
+
 /* ---------- pressao por marcha ---------- */
 .gear-boost{margin-top:14px;padding-top:11px;border-top:1px solid var(--hair)}
-.gb-row{display:flex;gap:6px;margin-top:10px}
+.gb-row{display:flex;gap:6px;margin-top:10px;max-width:430px}
 .gb{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
 .gb input[type=range]{
   /* o cursor vertical e o que faz a fileira parecer um banco de
@@ -595,9 +497,12 @@
 .inj-v{font-family:var(--mono);font-size:11px;color:var(--ink-2);text-align:right}
 
 /* ---------- barramento ---------- */
+/* dezessete sensores numa coluna so viravam rolagem dentro de
+   rolagem; em duas colunas a lista inteira cabe na tela */
 .sens-grid{
   display:grid;gap:1px;background:var(--hair);border:1px solid var(--hair);
-  border-radius:9px;overflow:auto;max-height:340px;
+  border-radius:9px;overflow:hidden;
+  grid-template-columns:repeat(auto-fit,minmax(215px,1fr));
 }
 .sens{
   display:grid;grid-template-columns:10px 74px 1fr 34px;align-items:center;gap:7px;

@@ -91,11 +91,10 @@
       <button role="tab" data-tab="alertas"   aria-selected="false"><span class="idx">06</span>Alertas</button>
       <button role="tab" data-tab="relatorio" aria-selected="false"><span class="idx">07</span>Relatório</button>
       <button role="tab" data-tab="projeto"   aria-selected="false"><span class="idx">08</span>Projeto</button>
-      <button role="tab" data-tab="cockpit" class="speed-only" aria-selected="false"><span class="idx">S0</span>Cockpit</button>
-      <button role="tab" data-tab="cluster" class="speed-only" aria-selected="false"><span class="idx">S1</span>Cluster</button>
-      <button role="tab" data-tab="ecu"     class="speed-only" aria-selected="false"><span class="idx">S2</span>ECU</button>
-      <button role="tab" data-tab="dyno"    class="speed-only" aria-selected="false"><span class="idx">S3</span>Dyno</button>
-      <button role="tab" data-tab="term"    class="speed-only" aria-selected="false"><span class="idx">S6</span>Terminal</button>
+      <button role="tab" data-tab="remap"   class="speed-only" aria-selected="false"><span class="idx">S0</span>Remap</button>
+      <button role="tab" data-tab="cockpit" class="speed-only" aria-selected="false"><span class="idx">S1</span>Bancada</button>
+      <button role="tab" data-tab="dyno"    class="speed-only" aria-selected="false"><span class="idx">S2</span>Dyno</button>
+      <button role="tab" data-tab="term"    class="speed-only" aria-selected="false"><span class="idx">S3</span>Terminal</button>
     </nav>
   </div>
 </header>
@@ -892,32 +891,23 @@
   </div>
 </section>
 
-<!-- ================= SPEED MODE — COCKPIT ================= -->
-<section class="tab speed-tab" id="tab-cockpit" role="tabpanel" hidden>
+<!-- ================= SPEED MODE — REMAP ================= -->
+<section class="tab speed-tab" id="tab-remap" role="tabpanel" hidden>
   <div class="sec-head">
     <span class="sh-idx">S0</span>
-    <h1>Cockpit</h1>
+    <h1>Remap</h1>
     <span class="badge warn">bancada fictícia</span>
-    <p class="sh-sub">Notebook ligado na ECU. Tudo aqui é simulado e nada toca na análise térmica — mas os módulos concordam entre si: mexa num e os outros respondem pela cadeia certa.</p>
+    <p class="sh-sub">Mapa de injeção, ignição, pressão e mistura. Edite célula a célula e veja a consequência descer a cadeia inteira, do bico à temperatura.</p>
   </div>
 
-  <div class="ck-grid">
+  <div class="remap-shell">
+    <div class="remap-pane" id="remapPane"></div>
+  </div>
 
-    <!-- conta-giros -->
-    <div class="ck ck-tach">
-      <div class="ck-h"><span class="ck-t">ENGINE SPEED</span><span class="ck-s" id="ckGearLab">GEAR 3</span></div>
-      <div class="shift-strip" id="ckShift" aria-hidden="true"></div>
-      <span class="led-tip" id="ckLedTip" aria-hidden="true"></span>
-      <div class="ck-canvas"><canvas id="ckTach"></canvas></div>
-      <button class="throttle" id="ckThrottle" aria-label="Acelerador — segure para acelerar">
-        <span class="thr-fill" id="ckThrFill"></span>
-        <span class="thr-lab">SEGURE PARA ACELERAR</span>
-      </button>
-      <div class="ck-row">
-        <div class="knob-row" id="ckGears"></div>
-        <button class="sw" id="ckLaunch" aria-pressed="false"><span class="sw-led"></span>LAUNCH</button>
-      </div>
-    </div>
+  <div class="remap-live">
+    <h2>Pressão e mistura</h2>
+    <p class="hint">O mapa diz o que pedir; estes módulos mostram o que sai. Eles não leem a tabela — leem o motor simulado, que é onde o mapa acaba desembocando.</p>
+    <div class="ck-grid">
 
     <!-- pressao de turbo -->
     <div class="ck ck-boost">
@@ -950,12 +940,6 @@
       <div class="inj-bank" id="ckInj"></div>
     </div>
 
-    <!-- barramento -->
-    <div class="ck ck-sens">
-      <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">16 sensores</span></div>
-      <div class="sens-grid" id="ckSens"></div>
-    </div>
-
     <!-- controle de pressao -->
     <div class="ck ck-turbo">
       <div class="ck-h"><span class="ck-t">TURBO CONTROL</span><span class="ck-s" id="ckTbS">spool 0 %</span></div>
@@ -975,6 +959,53 @@
       </div>
       <p class="cal-read" id="ckTbRead">—</p>
     </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= SPEED MODE — BANCADA ================= -->
+<section class="tab speed-tab" id="tab-cockpit" role="tabpanel" hidden>
+  <div class="sec-head">
+    <span class="sh-idx">S1</span>
+    <h1>Bancada</h1>
+    <span class="badge warn">bancada fictícia</span>
+    <p class="sh-sub">O que se observa, enquanto o Remap é o que se programa. Motor, barramento, gravação e as três calibrações que alimentam tudo: mexa numa e as outras respondem pela cadeia certa.</p>
+  </div>
+
+  <div class="ck-grid">
+
+    <!-- conta-giros -->
+    <div class="ck ck-tach">
+      <div class="ck-h"><span class="ck-t">ENGINE SPEED</span><span class="ck-s" id="ckGearLab">GEAR 3</span></div>
+      <div class="shift-strip" id="ckShift" aria-hidden="true"></div>
+      <span class="led-tip" id="ckLedTip" aria-hidden="true"></span>
+      <div class="ck-canvas"><canvas id="ckTach"></canvas></div>
+      <button class="throttle" id="ckThrottle" aria-label="Acelerador — segure para acelerar">
+        <span class="thr-fill" id="ckThrFill"></span>
+        <span class="thr-lab">SEGURE PARA ACELERAR</span>
+      </button>
+      <div class="ck-row">
+        <div class="knob-row" id="ckGears"></div>
+        <button class="sw" id="ckLaunch" aria-pressed="false"><span class="sw-led"></span>LAUNCH</button>
+      </div>
+    </div>
+
+    
+
+    
+
+    
+
+    
+
+    <!-- barramento -->
+    <div class="ck ck-sens">
+      <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">16 sensores</span></div>
+      <div class="sens-grid" id="ckSens"></div>
+    </div>
+
+    
 
     <!-- data logger -->
     <div class="ck ck-log">
@@ -1050,7 +1081,7 @@
 <!-- ================= SPEED MODE — TERMINAL ================= -->
 <section class="tab speed-tab" id="tab-term" role="tabpanel" hidden>
   <div class="sec-head">
-    <span class="sh-idx">S6</span>
+    <span class="sh-idx">S3</span>
     <h1>Terminal</h1>
     <p class="sh-sub">Console da central. Digite <code>help</code> para a lista de comandos.</p>
   </div>
@@ -1063,64 +1094,12 @@
   </div>
 </section>
 
-<!-- ================= SPEED MODE — CLUSTER ================= -->
-<section class="tab speed-tab" id="tab-cluster" role="tabpanel" hidden>
-  <div class="sec-head">
-    <span class="sh-idx">S1</span>
-    <h1>Cluster</h1>
-    <span class="badge warn" id="spdSource" hidden>telemetria de demonstração</span>
-    <p class="sh-sub">Painel de instrumentos alimentado pela telemetria real da coleta carregada. Ponteiros, escalas e alarmes são reais — o estilo é que é homenagem.</p>
-  </div>
-
-  <div class="hud-frame">
-    <div class="shift-strip" id="shiftStrip" aria-hidden="true"></div>
-    <div class="cluster-wrap">
-      <canvas id="spdCluster" aria-label="Painel de instrumentos"></canvas>
-    </div>
-    <div class="aux-wrap"><canvas id="spdAux" aria-label="Manômetros"></canvas></div>
-    <div class="hud-strip" id="hudStrip"></div>
-  </div>
-
-  <div class="grid g-2-1">
-    <div class="hud-card">
-      <div class="hud-card-h"><span class="hc-t">Telemetria</span><span class="hc-s" id="teleClock">--:--</span></div>
-      <div class="chart-box"><canvas id="spdTrace"></canvas></div>
-      <div class="player">
-        <button class="btn sm" id="btnSpdPlay">▶ Rodar telemetria</button>
-        <input type="range" id="spdScrub" min="0" max="100" value="100" step="1" style="flex:1;min-width:170px" aria-label="Instante da telemetria">
-        <span class="t" id="spdTime">--:-- / --:--</span>
-      </div>
-    </div>
-
-    <div class="hud-card nitro-card">
-      <div class="hud-card-h"><span class="hc-t">Nitro</span><span class="hc-s" id="nitroState">CHARGING</span></div>
-      <div class="nitro-bar"><div class="nitro-fill" id="nitroFill"></div></div>
-      <p class="nitro-hint" id="nitroHint">A carga sobe conforme a margem térmica: quanto mais longe do limite crítico, mais rápido enche.</p>
-      <button class="btn lg nitro-btn" id="btnNitro" disabled>NITRO</button>
-      <p class="nitro-foot">Puramente visual. Nenhum dado é alterado.</p>
-    </div>
-  </div>
-</section>
-
-<!-- ================= SPEED MODE — ECU ================= -->
-<section class="tab speed-tab" id="tab-ecu" role="tabpanel" hidden>
-  <div class="sec-head">
-    <span class="sh-idx">S2</span>
-    <h1>ECU</h1>
-    <p class="sh-sub">Central eletrônica fictícia. Cada tela lê um recorte diferente dos mesmos dados que alimentam a análise térmica.</p>
-  </div>
-  <div class="ecu-shell">
-    <div class="ecu-rail" id="ecuRail" role="tablist" aria-label="Telas da ECU"></div>
-    <div class="ecu-pane" id="ecuPane"></div>
-  </div>
-</section>
-
 <!-- ================= SPEED MODE — DYNO ================= -->
 <section class="tab speed-tab" id="tab-dyno" role="tabpanel" hidden>
   <div class="sec-head">
-    <span class="sh-idx">S3</span>
+    <span class="sh-idx">S2</span>
     <h1>Dyno</h1>
-    <p class="sh-sub">Ensaio em rolo com os mapas da aba Tune. A potência é ficção; o veredito no fim usa o UA medido na coleta carregada para dizer se o radiador real aguentaria o que o mapa pede.</p>
+    <p class="sh-sub">Ensaio em rolo com os mapas da tela Remap. A potência é ficção; o veredito no fim usa o UA medido na coleta carregada para dizer se o radiador real aguentaria o que o mapa pede.</p>
   </div>
   <div class="hud-frame">
     <div class="dyno-head">

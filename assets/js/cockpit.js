@@ -780,18 +780,26 @@
     if (traceAfr.length > TRACE_N) traceAfr.shift();
     logPush(s, dt);
 
-    if (!visible('tab-cockpit')) return;
+    /* os modulos vivem em duas telas agora: pressao e mistura no
+       Remap, motor e gravacao na Bancada. Desenhar o que esta
+       escondido custa por nada, entao cada grupo checa a sua.    */
+    var remap = visible('tab-remap'), banc = visible('tab-cockpit');
+    if (!remap && !banc) return;
     buildOnce();
-    drawTach(s);
-    drawBoost(s);
-    drawTrace('ckFuel', 0.42, 92, 150, traceFuel, { lo: 2.4, hi: 5.4, dec: 1, color: '#12b6ff', showB: true });
-    drawTrace('ckAfrTrace', 0.30, 62, 104, traceAfr, { lo: 10, hi: 17, dec: 1, color: '#3ff0e0', fill: 'rgba(63,240,224,.20)', showB: true });
-    paintDom(s);
-    paintTurbo(s);
-    drawLog();
 
-    var thr = $('#ckThrFill');
-    if (thr) thr.style.transform = 'scaleX(' + (s.tpsSm / 100).toFixed(3) + ')';
+    if (remap) {
+      drawBoost(s);
+      drawTrace('ckFuel', 0.42, 92, 150, traceFuel, { lo: 2.4, hi: 5.4, dec: 1, color: '#12b6ff', showB: true });
+      drawTrace('ckAfrTrace', 0.30, 62, 104, traceAfr, { lo: 10, hi: 17, dec: 1, color: '#3ff0e0', fill: 'rgba(63,240,224,.20)', showB: true });
+      paintTurbo(s);
+    }
+    if (banc) {
+      drawTach(s);
+      drawLog();
+      var thr = $('#ckThrFill');
+      if (thr) thr.style.transform = 'scaleX(' + (s.tpsSm / 100).toFixed(3) + ')';
+    }
+    paintDom(s);
   }
 
   /* ============================================================

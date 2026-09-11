@@ -194,12 +194,16 @@
     var btn = $('nav.tabs button[data-tab="' + name + '"]');
     if (!btn || (btn.classList.contains('speed-only') && document.documentElement.dataset.mode !== 'speed')) {
       name = 'painel';
+      btn = $('nav.tabs button[data-tab="painel"]');
     }
     $$('nav.tabs button').forEach(function (b) {
       b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
     });
     $$('section.tab').forEach(function (s) { s.hidden = s.id !== 'tab-' + name; });
     U.store.set('tab', name);
+    /* a ultima aba de trabalho fica guardada a parte: e para ela que
+       se volta ao sair do speed mode */
+    if (!btn.classList.contains('speed-only')) U.store.set('workTab', name);
     if (shuttle) shuttle.sync();
     if (ATC.Audio) ATC.Audio.play('tick');
     setTimeout(G.redrawAll, 30);
@@ -1698,10 +1702,17 @@
     loadDemo: loadDemo,
     /* chamada pelo speed mode quando a pele troca: paleta, tema dos
        graficos e um redesenho completo                             */
-    modeChanged: function () {
+    modeChanged: function (mode) {
       syncPalette();
       G.syncTheme();
+      /* entrar no speed mode cai na tela principal dele, nao na aba
+         de trabalho que estava aberta: quem aperta o botao quer ver
+         o outro lado, nao o mesmo relatorio com outra cor. Sair dele
+         volta para a ultima aba de trabalho.                        */
       var cur = U.store.get('tab', 'painel');
+      var speedTab = { remap: 1, cockpit: 1, dyno: 1, term: 1 };
+      if (mode === 'speed' && !speedTab[cur]) cur = 'remap';
+      if (mode !== 'speed' && speedTab[cur]) cur = U.store.get('workTab', 'painel');
       setTab(cur);
       renderAll();
     }
@@ -1728,8 +1739,8 @@
       return { group: 'Ir para', icon: t[2], label: t[1], keys: t[0], run: function () { setTab(t[0]); } };
     });
 
-    var SPEED_TABS = [['cockpit', 'Cockpit', '◈'], ['cluster', 'Cluster', '◉'],
-                      ['ecu', 'ECU', '▣'], ['dyno', 'Dyno', '◭'], ['term', 'Terminal', '>_']];
+    var SPEED_TABS = [['remap', 'Remap', '▣'], ['cockpit', 'Bancada', '◈'],
+                      ['dyno', 'Dyno', '◭'], ['term', 'Terminal', '>_']];
     SPEED_TABS.forEach(function (t) {
       list.push({
         group: 'Speed mode', icon: t[2], label: 'Ir para ' + t[1], keys: t[0],

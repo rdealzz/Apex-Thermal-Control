@@ -51,22 +51,27 @@ tipográfica, quase nenhum efeito. É o que vai impresso no relatório.
 
 **Speed mode** é um easter egg oficial — homenagem ao painel automotivo, ativado pelo
 botão **SPEED MODE** no cabeçalho. Ele troca a interface inteira por um HUD de carbono e
-abre três telas exclusivas:
+tem um centro só: a tela de **Remap**. Entrar no modo cai nela.
 
 | Tela | O que mostra |
 | --- | --- |
-| **Cockpit** | A bancada inteira: conta-giros com pedal, manômetro de turbo com presets, mistura, pressão de combustível, bicos, o barramento CAN e a **calibração de bancada** — todos vivos e ligados entre si |
-| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`, `log`, `bancada`, `mistura`, `admissao`, `temperatura`, `auto`) |
-| **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, mais quatro manômetros — pressão de óleo, de combustível, de turbo e AFR — com a telemetria da coleta rodando |
-| **ECU** | Oito telas de central eletrônica: Engine, Turbo, Injectors, **Tune**, Logger, Maps, Diagnostics, Telemetry |
-| **Dyno** | Passada de dinamômetro com os mapas da aba Tune, e o veredito de quanto tempo o radiador real seguraria aquilo |
+| **Remap** | A principal. Mapa rotação × carga editável célula a célula — combustível, ignição, pressão, AFR alvo — com a superfície 3D ao lado, e embaixo os módulos de **pressão e mistura**: manômetro de turbo com presets, AFR ao vivo, pressão de combustível, bicos e o controle de pressão inteiro |
+| **Bancada** | O que se observa: conta-giros com pedal, o barramento CAN com 17 sensores, o data logger e as três calibrações (mistura, admissão, temperatura) |
+| **Dyno** | Passada de dinamômetro com os mapas do Remap, e o veredito de quanto tempo o radiador real seguraria aquilo |
+| **Terminal** | Console da central (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`, `log`, `bancada`, `mistura`, `admissao`, `temperatura`, `auto`) |
 
-### O cockpit
+O que **saiu** saiu por acúmulo, não por defeito: as sete telas de ECU que reetiquetavam o
+dado térmico como grandeza de motor (Engine, Turbo, Injectors, Logger, Maps, Diagnostics,
+Telemetry) e o painel de ponteiros com a telemetria rodando. Eram bonitas e não levavam a
+lugar nenhum — e eram justamente o que fazia o speed mode parecer preso à coleta
+carregada. A divisão que sobrou é simples: **o que se programa** fica no Remap, **o que se
+observa** fica na Bancada.
 
-A tela principal do speed mode é um ambiente, não um painel. Os módulos não têm estado
-próprio: todos leem o mesmo simulador, que avança uma vez por quadro. É por isso que
-**mexer numa coisa move as outras pela cadeia certa**, sem nada sincronizando — elas são a
-mesma coisa vista de ângulos diferentes.
+### A cadeia
+
+Os módulos não têm estado próprio: todos leem o mesmo simulador, que avança uma vez por
+quadro. É por isso que **mexer numa coisa move as outras pela cadeia certa**, sem nada
+sincronizando — elas são a mesma coisa vista de ângulos diferentes.
 
 Segurando o pedal a 7.000 rpm, subir a pressão alvo faz isto:
 
@@ -157,12 +162,16 @@ O som da interface é sintetizado na hora com WebAudio — nenhum arquivo, nada 
 abrir offline — e tem cursor de volume ao lado do botão, que só aparece com o som ligado.
 O teto é baixo de propósito: mesmo no máximo, isto é som de interface.
 
-### A bancada de remapeamento
+### O mapa
 
-A aba **Tune** é uma tabela rotação × carga que se edita célula a célula — combustível,
-ignição, pressão de turbo e AFR alvo — com a superfície do mapa ao lado e o resultado
-aparecendo na hora. Clique numa célula, ande com as setas, ajuste com + e −. Há quatro
-presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
+A tela de **Remap** é uma tabela rotação × carga que se edita célula a célula —
+combustível, ignição, pressão de turbo e AFR alvo — com a superfície do mapa ao lado e o
+resultado aparecendo na hora. Clique numa célula, ande com as setas, ajuste com + e −. Há
+quatro presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
+
+Embaixo da tabela ficam os módulos que dão sentido a ela. O mapa diz o que **pedir**; eles
+mostram o que **sai** — e não leem a tabela: leem o motor simulado, que é onde o mapa
+acaba desembocando.
 
 O que faz valer a brincadeira é o motor de mentira ter os compromissos certos:
 
@@ -179,13 +188,14 @@ de calibração da coleta carregada. Depois usa a capacitância concentrada do p
 térmico para responder a única pergunta que importa: **por quanto tempo**. Com o mapa de
 fábrica, 31 segundos de pé embaixo até o alarme. Com o Míssil, 6.
 
-Fora a bancada de remapeamento, que é ficção assumida e está marcada como tal em cada tela, nenhum indicador do speed mode é inventado. O conta-giros mostra a rotação que veio do
-PID `010C`, o "boost" é o calor rejeitado pelo radiador, a "pressão de óleo" é o índice de
-saúde do núcleo, o "AFR" é a razão de capacidades C_r e o nitro enche conforme a margem
-que ainda existe até o limite crítico. Cada tela diz, embaixo do número, qual grandeza
-térmica ela está mostrando. O que é fictício é a apresentação, não o dado.
+Todo o speed mode é ficção assumida e está marcado como tal em cada tela — a badge
+**bancada fictícia** aparece no cabeçalho das duas telas principais. Nenhum número dele
+entra na análise térmica, e nenhum número da análise térmica entra nele. A única ponte é o
+veredito do dinamômetro, que é o lado sério do cálculo respondendo à pergunta que a
+brincadeira levanta.
 
-O modo escolhido fica lembrado no navegador. A sequência de partida — a tela de boot da
+O modo escolhido fica lembrado no navegador, e sair dele devolve a última aba de trabalho
+que estava aberta. A sequência de partida — a tela de boot da
 ECU — só toca quando o modo é ativado, não a cada visita.
 
 ## Aquisição de dados
@@ -300,7 +310,7 @@ com o mesmo ruído e a mesma resolução dos sensores previstos (OBD-II 1 °C, D
 index.html                 página única com todas as abas
 
 assets/css/app.css         tokens dos dois modos e biblioteca de componentes
-assets/css/speed.css       peças exclusivas do speed mode (boot, cluster, ECU, dyno)
+assets/css/speed.css       peças exclusivas do speed mode (boot, remap, bancada, dyno)
 
 assets/js/util.js          utilitários, formatação pt-BR, armazenamento local
 assets/js/motion.js        integrador de molas: inclinação, toque, cursor das abas, contagem
@@ -314,8 +324,8 @@ assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cál
 assets/js/tasks.js         itens pendentes do projeto, marcáveis e guardados no navegador
 assets/js/sim.js           simulação de bancada: piloto virtual, ondulação e o estado do qual tudo deriva
 assets/js/cockpit.js       módulos do cockpit e o terminal da central
-assets/js/tune.js          mapas da bancada de remapeamento e o motor de mentira por trás
-assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro
+assets/js/tune.js          mapas da tela de remapeamento e o motor de mentira por trás
+assets/js/speed.js         speed mode: partida da ECU, tela de remapeamento, dinamômetro
 assets/js/cmdk.js          paleta de comandos (Ctrl+K)
 assets/js/app.js           interface, estado, relatório
 
@@ -385,9 +395,9 @@ Duas decisões saíram de medição, não de gosto:
   própria pastilha de fundo, a escala é escrita na borda que aparece mais embaixo na tela
   e as pastilhas que colidiriam com o nome de um eixo são simplesmente omitidas.
 - **Vidro só onde o fundo fica parado.** `backdrop-filter` obriga o navegador a refazer o
-  desfoque sempre que qualquer coisa atrás muda; com o cluster desenhando a 60 Hz, o
-  desfoque nos painéis custava 34 dos 60 quadros por segundo (medido: 27 fps com, 61 fps
-  sem). Os painéis passaram a usar cor translúcida, que no escuro lê igual e não custa
+  desfoque sempre que qualquer coisa atrás muda; com os mostradores do speed mode
+  desenhando a 60 Hz, o desfoque nos painéis custava 34 dos 60 quadros por segundo
+  (medido: 27 fps com, 61 fps sem). Os painéis passaram a usar cor translúcida, que no escuro lê igual e não custa
   nada. O desfoque de verdade ficou no cabeçalho e na paleta de comandos, que flutuam
   sobre conteúdo estático.
 
