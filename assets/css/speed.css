@@ -393,6 +393,7 @@
 .ck-fuel{grid-column:span 5}
 .ck-inj{grid-column:span 3}
 .ck-sens{grid-column:span 4}
+.ck-cal{grid-column:span 12}
 @media (max-width:1180px){
   .ck-tach{grid-column:span 7}.ck-boost{grid-column:span 5}
   .ck-afr{grid-column:span 6}.ck-fuel{grid-column:span 6}
@@ -473,6 +474,43 @@
 .pot-l{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4);white-space:nowrap}
 .pot input[type=range]{flex:1 1 auto;min-width:60px;accent-color:var(--boost)}
 .pot-v{font-family:var(--mono);font-size:11px;color:var(--ink);min-width:42px;text-align:right}
+
+/* ---------- bancada de calibracao ----------
+   Tres colunas porque sao tres decisoes independentes: quanto ar,
+   quanto combustivel, quanto calor sai. Cada coluna termina na
+   propria leitura ao vivo — o valor que o potenciometro produziu,
+   nao o que ele pede. E a diferenca entre os dois que ensina. */
+.cal-intro{font-size:12px;color:var(--ink-3);line-height:1.55;margin:0 0 12px}
+.cal-grid{
+  display:grid;gap:14px;
+  grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+}
+.cal-col{
+  border:1px solid var(--hair);border-radius:calc(var(--r) - 4px);
+  padding:11px 12px 10px;
+  background:color-mix(in srgb,var(--canvas-2) 60%,transparent);
+}
+.cal-t{
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;
+  color:var(--ink-4);padding-bottom:7px;border-bottom:1px solid var(--hair);
+}
+.cal-col .pot:first-of-type{margin-top:9px}
+.cal-col .pot-l{min-width:92px}
+.cal-col .pot-v{min-width:56px}
+.cal-read{
+  font-family:var(--mono);font-size:10.5px;line-height:1.6;
+  color:var(--ink-3);margin:11px 0 0;
+  padding-top:9px;border-top:1px solid var(--hair);
+  min-height:34px;
+}
+.cal-read b{color:var(--acc);font-weight:600}
+.cal-read .w{color:var(--warn)}
+.cal-read .e{color:var(--crit)}
+.cal-phase{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+  color:var(--ink-4);text-transform:uppercase;
+}
+.knob.wide{padding-inline:12px;letter-spacing:.12em}
 
 /* ---------- mistura ---------- */
 .afr-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4);margin-bottom:4px}

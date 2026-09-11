@@ -505,7 +505,9 @@
     </div>
   </div>
 
-  <div class="card lift" id="anaResults" hidden>
+  <!-- sem "lift": a superficie eps-NTU aqui dentro tambem se arrasta com o
+       ponteiro, e o balanco do cartao rouba o arrasto dela -->
+  <div class="card" id="anaResults" hidden>
     <h2>Resultados por regime de operação</h2>
     <p class="hint">Amostras do regime de aquecimento (termostato fechado) são excluídas: sem vazão pelo radiador não há troca a caracterizar.</p>
     <div class="tbl-scroll"><table id="tblRegimes"></table></div>
@@ -947,8 +949,60 @@
 
     <!-- barramento -->
     <div class="ck ck-sens">
-      <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">14 sensores</span></div>
+      <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">16 sensores</span></div>
       <div class="sens-grid" id="ckSens"></div>
+    </div>
+
+    <!-- bancada de calibracao -->
+    <div class="ck ck-cal">
+      <div class="ck-h">
+        <span class="ck-t">BENCH CALIBRATION</span>
+        <span class="ck-s" id="ckCalS">piloto virtual · marcha lenta</span>
+      </div>
+      <p class="cal-intro">Os três blocos alimentam a mesma cadeia: a admissão decide quanto ar entra e a que temperatura, a mistura decide quanto combustível acompanha esse ar, o arrefecimento decide o que o motor consegue devolver. Mexa em um e observe os outros dois se ajustarem — nenhum valor aqui é copiado da análise térmica.</p>
+
+      <div class="cal-grid">
+
+        <div class="cal-col">
+          <div class="cal-t">MISTURA</div>
+          <div class="pot"><label class="pot-l" for="calAfr">AFR ALVO</label>
+            <input type="range" id="calAfr" min="10.5" max="16.5" step="0.1" value="12.6"><span class="pot-v" id="calAfrV">12,6</span></div>
+          <div class="pot"><label class="pot-l" for="calTrim">TRIM GLOBAL</label>
+            <input type="range" id="calTrim" min="-25" max="25" step="1" value="0"><span class="pot-v" id="calTrimV">0 %</span></div>
+          <div class="pot"><label class="pot-l" for="calRail">TRILHO BASE</label>
+            <input type="range" id="calRail" min="1.8" max="5" step="0.1" value="3"><span class="pot-v" id="calRailV">3,0 bar</span></div>
+          <p class="cal-read" id="calReadFuel">—</p>
+        </div>
+
+        <div class="cal-col">
+          <div class="cal-t">ADMISSÃO</div>
+          <div class="pot"><label class="pot-l" for="calAmb">AR AMBIENTE</label>
+            <input type="range" id="calAmb" min="-5" max="50" step="1" value="28"><span class="pot-v" id="calAmbV">28 °C</span></div>
+          <div class="pot"><label class="pot-l" for="calIc">INTERCOOLER</label>
+            <input type="range" id="calIc" min="0" max="95" step="1" value="62"><span class="pot-v" id="calIcV">62 %</span></div>
+          <div class="pot"><label class="pot-l" for="calRestr">RESTRIÇÃO</label>
+            <input type="range" id="calRestr" min="0" max="60" step="1" value="12"><span class="pot-v" id="calRestrV">12 %</span></div>
+          <p class="cal-read" id="calReadAir">—</p>
+        </div>
+
+        <div class="cal-col">
+          <div class="cal-t">TEMPERATURA</div>
+          <div class="pot"><label class="pot-l" for="calThermo">TERMOSTATO</label>
+            <input type="range" id="calThermo" min="78" max="104" step="1" value="92"><span class="pot-v" id="calThermoV">92 °C</span></div>
+          <div class="pot"><label class="pot-l" for="calFan">VENTOINHA LIGA</label>
+            <input type="range" id="calFan" min="88" max="118" step="1" value="101"><span class="pot-v" id="calFanV">101 °C</span></div>
+          <div class="pot"><label class="pot-l" for="calRad">RADIADOR</label>
+            <input type="range" id="calRad" min="40" max="130" step="1" value="100"><span class="pot-v" id="calRadV">100 %</span></div>
+          <p class="cal-read" id="calReadEct">—</p>
+        </div>
+
+      </div>
+
+      <div class="ck-row">
+        <button class="sw" id="ckAuto" aria-pressed="true"><span class="sw-led"></span>PILOTO VIRTUAL</button>
+        <span class="cal-phase" id="ckPhase">marcha lenta</span>
+        <button class="knob wide" id="ckCalReset">RESTAURAR</button>
+      </div>
     </div>
 
   </div>

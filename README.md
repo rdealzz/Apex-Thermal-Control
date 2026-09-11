@@ -55,8 +55,8 @@ abre três telas exclusivas:
 
 | Tela | O que mostra |
 | --- | --- |
-| **Cockpit** | A bancada inteira: conta-giros com pedal, manômetro de turbo com presets, mistura, pressão de combustível, bicos e o barramento CAN — todos vivos e ligados entre si |
-| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`) |
+| **Cockpit** | A bancada inteira: conta-giros com pedal, manômetro de turbo com presets, mistura, pressão de combustível, bicos, o barramento CAN e a **calibração de bancada** — todos vivos e ligados entre si |
+| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`, `bancada`, `mistura`, `admissao`, `temperatura`, `auto`) |
 | **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, mais quatro manômetros — pressão de óleo, de combustível, de turbo e AFR — com a telemetria da coleta rodando |
 | **ECU** | Oito telas de central eletrônica: Engine, Turbo, Injectors, **Tune**, Logger, Maps, Diagnostics, Telemetry |
 | **Dyno** | Passada de dinamômetro com os mapas da aba Tune, e o veredito de quanto tempo o radiador real seguraria aquilo |
@@ -79,6 +79,46 @@ Segurando o pedal a 7.000 rpm, subir a pressão alvo faz isto:
 Comprimir aquece o ar, o ar quente sobe a água, o coletor cheio pede combustível, o bico
 caminha para a saturação e a detonação fica mais provável. Nenhum desses números é
 sorteado.
+
+### Dado parado não parece dado
+
+Painel congelado denuncia a mentira na primeira olhada, então duas coisas mantêm a tela
+respirando **sem tocar em nada**:
+
+- **Piloto virtual.** Ninguém fica com o dedo no acelerador o tempo todo. Com o pedal
+  livre, um gerador de ciclo de condução assume — acelera, troca de marcha perto do corte,
+  cruza, alivia, volta à lenta — e o rótulo embaixo diz em que fase ele está. Encostar no
+  pedal tira o comando dele na hora; ele volta 1,4 s depois. A chave **PILOTO VIRTUAL**
+  desliga tudo quando você quiser dirigir sozinho.
+- **Ondulação com forma.** Ruído branco parece chuvisco. Cada canal — lenta, admissão,
+  água, tensão, óleo, sonda, coletor — tem três senoides de períodos que não fecham entre
+  si, então as agulhas respiram em ritmos diferentes e nada repete. A sonda de banda
+  estreita busca em torno do alvo como uma de verdade; o coletor pulsa com a admissão.
+
+A temperatura da água não precisa de ruído nenhum: com termostato e ventoinha de
+histerese, ela oscila sozinha — que é exatamente o que ela faz num carro parado no
+trânsito.
+
+### Calibração de bancada
+
+Nove potenciômetros, três decisões. Cada um escreve direto no mesmo estado que a simulação
+lê no quadro seguinte — não há botão de aplicar porque não há nada a sincronizar, e é por
+isso que a agulha responde com o dedo ainda no controle.
+
+| Bloco | Controles | O que muda na cadeia |
+| --- | --- | --- |
+| **Mistura** | AFR alvo, trim global (±25 %), pressão base do trilho | trilho fraco entrega menos pelo mesmo tempo de bico e **empobrece sozinho**; bico saturado abre a mistura mais ainda |
+| **Admissão** | ar ambiente (−5 a 50 °C), eficiência do intercooler, restrição do filtro | restrição tira enchimento (menos boost, menos torque) e vira calor; o intercooler decide quanto da compressão volta |
+| **Temperatura** | abertura do termostato, temperatura que liga a ventoinha, capacidade do radiador | define onde a água estabiliza, com que amplitude ela oscila e se ela estabiliza |
+
+Cada bloco termina numa leitura ao vivo do que o potenciômetro **produziu**, não do que
+ele pede — e é a diferença entre os dois que ensina. Um radiador em 45 % com o piloto em
+cruzeiro não segura: a água sobe até o teto e a leitura fica vermelha. Está tudo salvo no
+navegador, e **RESTAURAR** devolve os nove de uma vez.
+
+Os mesmos ajustes respondem no terminal: `bancada` lista os nove, `mistura +8`,
+`admissao 42`, `temperatura 88` e `auto off` mexem neles de lá — e o cursor na tela anda
+junto.
 
 Sete temas — Carbono, Titanium, Nismo, Midnight, Neo Tokyo, Factory e Race — trocam só os
 tokens de cor, então todo módulo segue junto, inclusive os canvas, que consultam a paleta
@@ -239,7 +279,7 @@ assets/js/model.js         regressão ridge, validação cruzada, anomalias, ale
 assets/js/demo.js          gerador de coletas sintéticas
 assets/js/explain.js       a aba "Entenda o cálculo": esquema, memória de cálculo, superfície 3D
 assets/js/tasks.js         itens pendentes do projeto, marcáveis e guardados no navegador
-assets/js/sim.js           simulação de bancada: um estado que avança e do qual tudo deriva
+assets/js/sim.js           simulação de bancada: piloto virtual, ondulação e o estado do qual tudo deriva
 assets/js/cockpit.js       módulos do cockpit e o terminal da central
 assets/js/tune.js          mapas da bancada de remapeamento e o motor de mentira por trás
 assets/js/speed.js         speed mode: partida da ECU, cluster, telas da central, dinamômetro

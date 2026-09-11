@@ -294,6 +294,8 @@
           '<span class="sn-u">' + x.u + '</span>' +
           '<span class="sn-bar"><i id="snb-' + x.id + '"></i></span></div>';
       }).join('');
+      var bs = $('#ckBusS');
+      if (bs) bs.textContent = ATC.Sim.sensors().length + ' sensores';
     }
     built = true;
   }
@@ -338,6 +340,76 @@
     if (lam) lam.textContent = 'λ ' + U.br(s.lambda, 3);
     var fs = $('#ckFuelS');
     if (fs) fs.textContent = 'alvo ' + U.br(s.fuelTarget, 2) + ' bar';
+
+    paintBench(s);
+  }
+
+  /* ============================================================
+     Leituras da bancada
+     ------------------------------------------------------------
+     Estas tres linhas sao o unico lugar da tela onde se ve o que
+     o potenciometro produziu em vez do que ele pede. Sao escritas
+     com a precisao arredondada de proposito: assim a assinatura
+     muda umas poucas vezes por segundo e o DOM nao e reescrito a
+     cada quadro so porque o terceiro decimal mexeu.
+     ============================================================ */
+  var benchSig = '';
+  function paintBench(s) {
+    var c = SIM.ctl();
+    var sig = [U.br(s.afr, 1), U.br(s.duty, 0), U.br(s.iat, 0), U.br(s.ect, 0),
+               s.fan ? 1 : 0, U.br(s.map, 0), s.phase, s.manual ? 1 : 0, c.auto ? 1 : 0].join('|');
+    if (sig === benchSig) return;
+    benchSig = sig;
+
+    var restr = U.clamp(c.intakeRestr, 0, 60) / 100;
+    var ve = (1 - restr * 0.42) * 100;
+
+    var f = $('#calReadFuel');
+    if (f) {
+      var carga = s.tpsSm > 25;
+      var rico = s.afr < 12.0, pobre = s.afr > 13.4, sat = s.duty > 92;
+      f.innerHTML =
+        'entregue <b>' + U.br(s.afr, 1) + ':1</b> · λ ' + U.br(s.lambda, 3) +
+        ' · comando ' + U.br(s.afrCmd, 1) + ':1<br>' +
+        'bico <span class="' + (sat ? 'w' : '') + '">' + U.br(s.duty, 0) + ' %</span> · trilho ' +
+        U.br(s.fuelReal, 2) + ' bar · ' +
+        (pobre ? (carga ? '<span class="e">pobre sob carga</span>'
+                        : 'pobre, mas em carga leve')
+               : rico ? 'rica — segura a detonação, gasta mais'
+                      : 'dentro da janela');
+    }
+
+    var a = $('#calReadAir');
+    if (a) {
+      var sobre = s.iat - c.ambT;
+      a.innerHTML =
+        'IAT <b>' + U.br(s.iat, 0) + ' °C</b> · ' + (sobre >= 0 ? '+' : '') + U.br(sobre, 0) +
+        ' °C sobre o ambiente<br>' +
+        'enchimento ' + U.br(ve, 0) + ' % · MAP ' + U.br(s.map, 0) + ' kPa · ' +
+        /* ar quente por compressao mal resfriada e problema de
+           intercooler; ar quente porque o dia esta quente, nao e  */
+        (s.iat > 65 ? '<span class="e">ar quente demais</span>'
+                    : sobre > 18 ? '<span class="w">intercooler no limite</span>'
+                                 : s.iat > 52 ? '<span class="w">o ambiente já entra quente</span>'
+                                              : 'admissão fria');
+    }
+
+    var e = $('#calReadEct');
+    if (e) {
+      e.innerHTML =
+        'ECT <b>' + U.br(s.ect, 0) + ' °C</b> · termostato ' + U.br(s.thermoOpen * 100, 0) + ' % aberto<br>' +
+        'ventoinha ' + (s.fan ? '<b>LIGADA</b>' : 'desligada') + ' · ' +
+        (s.ect < 115 ? 'margem ' + U.br(115 - s.ect, 0) + ' °C'
+                     : '<span class="e">' + U.br(s.ect - 115, 0) + ' °C acima da margem</span>') + ' · ' +
+        (s.ect > 108 ? '<span class="e">acima do limite</span>'
+                     : s.ect > 103 ? '<span class="w">subindo</span>'
+                                   : 'estável');
+    }
+
+    var ph = $('#ckPhase');
+    if (ph) ph.textContent = s.phase;
+    var cs = $('#ckCalS');
+    if (cs) cs.textContent = (c.auto ? 'piloto virtual' : 'comando manual') + ' · ' + s.phase;
   }
 
   /* ============================================================
@@ -427,9 +499,13 @@
     if (afr && !afr.__w) {
       afr.__w = 1;
       afr.addEventListener('input', function () {
-        SIM.set('afrTarget', parseFloat(afr.value));
-        $('#ckAfrV').textContent = U.br(parseFloat(afr.value), 1);
+        var v = parseFloat(afr.value);
+        SIM.set('afrTarget', v);
+        $('#ckAfrV').textContent = U.br(v, 1);
+        var pot = $('#calAfr');
+        if (pot) { pot.value = v; benchPaintOne({ id: 'calAfr', k: 'afrTarget', dec: 1, u: '' }); }
       });
+      afr.addEventListener('change', function () { benchSave(); });
     }
 
     var lc = $('#ckLaunch');
@@ -445,11 +521,143 @@
       });
     }
 
+    wireBench();
+
     /* estado inicial dos botoes */
     var d = document.querySelector('[data-boost="0.8"]');
     if (d) d.classList.add('on');
     var g3 = document.querySelector('[data-gear="3"]');
     if (g3) g3.classList.add('on');
+  }
+
+  /* ============================================================
+     Bancada: mistura, admissao e temperatura
+     ------------------------------------------------------------
+     Nove potenciometros, um objeto de controle, nenhum caminho
+     paralelo: cada um escreve direto na mesma estrutura que a
+     simulacao le no quadro seguinte. Nao ha "aplicar" porque nao
+     ha nada a sincronizar — e por isso que a agulha responde
+     enquanto o dedo ainda esta no controle.
+     ============================================================ */
+  var BENCH = [
+    { id: 'calAfr',    k: 'afrTarget',   dec: 1, u: '' },
+    { id: 'calTrim',   k: 'fuelTrim',    dec: 0, u: ' %' },
+    { id: 'calRail',   k: 'railBase',    dec: 1, u: ' bar' },
+    { id: 'calAmb',    k: 'ambT',        dec: 0, u: ' °C' },
+    { id: 'calIc',     k: 'icEff',       dec: 0, u: ' %' },
+    { id: 'calRestr',  k: 'intakeRestr', dec: 0, u: ' %' },
+    { id: 'calThermo', k: 'thermo',      dec: 0, u: ' °C' },
+    { id: 'calFan',    k: 'fanOn',       dec: 0, u: ' °C' },
+    { id: 'calRad',    k: 'radCap',      dec: 0, u: ' %' }
+  ];
+  var BENCH_DEF = null;
+
+  function benchPaintOne(b) {
+    var el = document.getElementById(b.id);
+    var out = document.getElementById(b.id + 'V');
+    if (!el) return;
+    var v = parseFloat(el.value);
+    if (out) out.textContent = (b.k === 'fuelTrim' && v > 0 ? '+' : '') + U.br(v, b.dec) + b.u;
+  }
+
+  function benchSave() {
+    var c = SIM.ctl(), o = {};
+    BENCH.forEach(function (b) { o[b.k] = c[b.k]; });
+    o.auto = c.auto;
+    U.store.set('bench', o);
+  }
+
+  function benchApply(vals, quiet) {
+    BENCH.forEach(function (b) {
+      if (!(b.k in vals)) return;
+      var el = document.getElementById(b.id);
+      var v = parseFloat(vals[b.k]);
+      if (!isFinite(v)) return;
+      if (el) {
+        v = U.clamp(v, parseFloat(el.min), parseFloat(el.max));
+        el.value = v;
+      }
+      SIM.set(b.k, v);
+      benchPaintOne(b);
+    });
+    /* a mistura tem dois controles na tela: o potenciometro da
+       bancada e o cursor grande do modulo AIR/FUEL. Sao o mesmo
+       numero, entao os dois andam juntos                        */
+    if ('afrTarget' in vals) {
+      var big = $('#ckAfr');
+      if (big) { big.value = SIM.ctl().afrTarget; }
+      var bv = $('#ckAfrV');
+      if (bv) bv.textContent = U.br(SIM.ctl().afrTarget, 1);
+    }
+    if (!quiet) benchSave();
+  }
+
+  function wireBench() {
+    var c = SIM.ctl();
+    if (!BENCH_DEF) {
+      BENCH_DEF = {};
+      BENCH.forEach(function (b) { BENCH_DEF[b.k] = c[b.k]; });
+      BENCH_DEF.auto = c.auto;
+    }
+
+    BENCH.forEach(function (b) {
+      var el = document.getElementById(b.id);
+      if (!el || el.__w) return;
+      el.__w = 1;
+      el.addEventListener('input', function () {
+        var v = parseFloat(el.value);
+        SIM.set(b.k, v);
+        benchPaintOne(b);
+        if (b.k === 'afrTarget') {
+          var big = $('#ckAfr'); if (big) big.value = v;
+          var bv = $('#ckAfrV'); if (bv) bv.textContent = U.br(v, 1);
+        }
+        benchSig = '';
+      });
+      el.addEventListener('change', function () { benchSave(); if (A) A.play('tick'); });
+    });
+
+    var auto = $('#ckAuto');
+    if (auto && !auto.__w) {
+      auto.__w = 1;
+      auto.addEventListener('click', function () {
+        var now = auto.getAttribute('aria-pressed') !== 'true';
+        auto.setAttribute('aria-pressed', String(now));
+        auto.classList.toggle('on', now);
+        SIM.auto(now);
+        benchSave();
+        if (A) A.play('relay');
+        if (M) M.toast(now ? 'Piloto virtual conduzindo' : 'Piloto virtual desligado — use o pedal', null, 2100);
+      });
+    }
+
+    var rst = $('#ckCalReset');
+    if (rst && !rst.__w) {
+      rst.__w = 1;
+      rst.addEventListener('click', function () {
+        benchApply(BENCH_DEF);
+        SIM.auto(BENCH_DEF.auto);
+        SIM.resetKnock();
+        benchSave();
+        if (A) A.play('relay');
+        if (M) M.toast('Calibração restaurada', null, 1800);
+        benchSig = '';
+      });
+    }
+
+    /* o que ficou guardado da ultima visita volta antes do primeiro
+       quadro, senao a agulha salta assim que a tela abre */
+    var saved = U.store.get('bench', null);
+    if (saved && typeof saved === 'object') {
+      benchApply(saved, true);
+      if ('auto' in saved) SIM.auto(!!saved.auto);
+    }
+    var on2 = SIM.ctl().auto;
+    if (auto) {
+      auto.setAttribute('aria-pressed', String(on2));
+      auto.classList.toggle('on', on2);
+    }
+    BENCH.forEach(benchPaintOne);
   }
 
   /* ============================================================
@@ -469,6 +677,11 @@
         '  turbo       estado do controle de pressao',
         '  injectors   ciclo de trabalho por bico',
         '  launch      arma ou desarma o launch control',
+        '  bancada     calibracao atual dos nove ajustes',
+        '  mistura <trim>      enriquece (+) ou empobrece (-) em %',
+        '  admissao <temp>     temperatura do ar ambiente em °C',
+        '  temperatura <ect>   abertura do termostato em °C',
+        '  auto [on|off]       liga ou desliga o piloto virtual',
         '  clear       limpa a tela'].join('\n');
     },
     status: function (s) {
@@ -536,8 +749,58 @@
       var el = $('#ckLaunch');
       if (el) el.click();
       return '<ok>launch control alternado</ok>';
+    },
+    bancada: function (s) {
+      var c = SIM.ctl();
+      return ['MISTURA',
+        '  AFR alvo       ' + U.br(c.afrTarget, 1) + ':1   (entregue ' + U.br(s.afr, 1) + ')',
+        '  Trim global    ' + (c.fuelTrim > 0 ? '+' : '') + U.br(c.fuelTrim, 0) + ' %',
+        '  Trilho base    ' + U.br(c.railBase, 1) + ' bar',
+        'ADMISSAO',
+        '  Ar ambiente    ' + U.br(c.ambT, 0) + ' °C   (IAT ' + U.br(s.iat, 0) + ')',
+        '  Intercooler    ' + U.br(c.icEff, 0) + ' %',
+        '  Restricao      ' + U.br(c.intakeRestr, 0) + ' %',
+        'TEMPERATURA',
+        '  Termostato     ' + U.br(c.thermo, 0) + ' °C   (ECT ' + U.br(s.ect, 0) + ')',
+        '  Ventoinha liga ' + U.br(c.fanOn, 0) + ' °C   ' + (s.fan ? '<ok>LIGADA</ok>' : 'desligada'),
+        '  Radiador       ' + U.br(c.radCap, 0) + ' %',
+        'PILOTO          ' + (c.auto ? '<ok>VIRTUAL</ok> — ' + s.phase : 'manual')].join('\n');
+    },
+    mistura: function (s, arg) {
+      return benchCmd('fuelTrim', 'calTrim', arg, -25, 25, 0, ' %',
+        'trim de combustivel', 'mistura entregue ' + U.br(s.afr, 1) + ':1');
+    },
+    admissao: function (s, arg) {
+      return benchCmd('ambT', 'calAmb', arg, -5, 50, 0, ' °C',
+        'ar de admissao', 'IAT agora em ' + U.br(s.iat, 0) + ' °C');
+    },
+    temperatura: function (s, arg) {
+      return benchCmd('thermo', 'calThermo', arg, 78, 104, 0, ' °C',
+        'abertura do termostato', 'ECT agora em ' + U.br(s.ect, 0) + ' °C');
+    },
+    auto: function (s, arg) {
+      var el = $('#ckAuto');
+      var want = arg == null ? !SIM.ctl().auto
+        : /^(on|1|liga|ligado|sim)$/i.test(String(arg));
+      if (el && (el.getAttribute('aria-pressed') === 'true') !== want) el.click();
+      else SIM.auto(want);
+      return want ? '<ok>piloto virtual conduzindo</ok>' : 'piloto virtual desligado — use o pedal';
     }
   };
+
+  /* um so caminho para os comandos que mexem na bancada: valida,
+     escreve no controle, devolve o cursor para o mesmo lugar */
+  function benchCmd(key, slider, arg, lo, hi, dec, unit, nome, eco) {
+    var c = SIM.ctl();
+    if (arg == null) return nome + ': ' + U.br(c[key], dec) + unit;
+    var v = parseFloat(String(arg).replace(',', '.'));
+    if (!isFinite(v)) return '<e>valor invalido</e>';
+    v = U.clamp(v, lo, hi);
+    SIM.set(key, v);
+    var el = document.getElementById(slider);
+    if (el) { el.value = v; el.dispatchEvent(new Event('input')); el.dispatchEvent(new Event('change')); }
+    return '<ok>' + nome + ' -> ' + U.br(v, dec) + unit + '</ok>\n' + eco;
+  }
 
   function termPrint(html) {
     var out = $('#termOut');
