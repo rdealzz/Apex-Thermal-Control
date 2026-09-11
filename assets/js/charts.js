@@ -799,7 +799,25 @@
       if (wGuess && wGuess < 620) H = Math.min(H, Math.round(wGuess * 1.02));
       var f = fit(canvas, H), ctx = f.ctx, W = f.w;
       ctx.clearRect(0, 0, W, H);
-      ctx.fillStyle = THEME.bg; ctx.fillRect(0, 0, W, H);
+      /* fundo com um degrade de cima para baixo em vez de chapado: da
+         ao volume um ceu contra o qual se destacar, e e o que separa
+         "desenho tecnico" de "cena" */
+      var bgRGB = hexRgb(THEME.bg);
+      /* o quanto o degrade abre depende do tema: no escuro da para
+         clarear bastante o alto sem estranheza, no claro qualquer
+         exagero vira mancha cinza embaixo do desenho */
+      var lum = (bgRGB[0] * 0.299 + bgRGB[1] * 0.587 + bgRGB[2] * 0.114) / 255;
+      var up = lum < 0.5 ? 1.55 : 1.0, dn = lum < 0.5 ? 0.74 : 0.965;
+      var bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+      function sh(mul, add) {
+        return 'rgb(' + Math.round(U.clamp(bgRGB[0] * mul + add, 0, 255)) + ',' +
+          Math.round(U.clamp(bgRGB[1] * mul + add * 1.1, 0, 255)) + ',' +
+          Math.round(U.clamp(bgRGB[2] * mul + add * 1.5, 0, 255)) + ')';
+      }
+      bgGrad.addColorStop(0, sh(up, lum < 0.5 ? 6 : 0));
+      bgGrad.addColorStop(0.62, THEME.bg);
+      bgGrad.addColorStop(1, sh(dn, 0));
+      ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, W, H);
 
       var Z = c.z;
       if (!Z || !Z.length) {
@@ -808,16 +826,74 @@
         ctx.fillText(c.emptyMsg || 'Sem dados', W / 2, H / 2);
         return;
       }
-      var ny = Z.length, nx = Z[0].length;
+      var ny0 = Z.length, nx0 = Z[0].length;
       var i, j, k;
+
+      /* ------------------------------------------------------------
+         Refino da malha
+         ------------------------------------------------------------
+         Uma tabela 8x6 desenhada crua vira um origami: seis faces de
+         cada lado, cada uma com o proprio tom, e o relevo some nas
+         quinas. Interpolar por Catmull-Rom entre os nos existentes
+         nao inventa dado nenhum — os nos continuam exatamente onde
+         estavam — e devolve a superficie continua que a tabela ja
+         descrevia. E de longe o que mais muda a aparencia.
+         ------------------------------------------------------------ */
+      function cr(p0, p1, p2, p3, t) {
+        var t2 = t * t, t3 = t2 * t;
+        return 0.5 * ((2 * p1) + (-p0 + p2) * t +
+          (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 +
+          (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+      }
+      function refine(src, n) {
+        if (n <= 1) return src;
+        var h = src.length, w = src[0].length;
+        function at(jj, ii) {
+          return src[U.clamp(jj, 0, h - 1)][U.clamp(ii, 0, w - 1)];
+        }
+        /* primeiro nas colunas, depois nas linhas do resultado */
+        var rows = [], jj, ii, q;
+        for (jj = 0; jj < h; jj++) {
+          var row = [];
+          for (ii = 0; ii < w - 1; ii++) {
+            for (q = 0; q < n; q++) {
+              row.push(cr(at(jj, ii - 1), at(jj, ii), at(jj, ii + 1), at(jj, ii + 2), q / n));
+            }
+          }
+          row.push(at(jj, w - 1));
+          rows.push(row);
+        }
+        var out = [], w2 = rows[0].length;
+        for (jj = 0; jj < h - 1; jj++) {
+          for (q = 0; q < n; q++) {
+            var nr = [];
+            for (ii = 0; ii < w2; ii++) {
+              nr.push(cr(rows[U.clamp(jj - 1, 0, h - 1)][ii], rows[jj][ii],
+                         rows[U.clamp(jj + 1, 0, h - 1)][ii], rows[U.clamp(jj + 2, 0, h - 1)][ii], q / n));
+            }
+            out.push(nr);
+          }
+        }
+        out.push(rows[h - 1].slice());
+        return out;
+      }
+      var fine = Math.max(1, Math.round(c.smooth || 1));
+      /* refinar uma malha que ja e fina so gasta quadro */
+      if (nx0 * fine > 90 || ny0 * fine > 90) fine = 1;
+      var ZF = fine > 1 ? refine(Z, fine) : Z;
+      var ny = ZF.length, nx = ZF[0].length;
 
       var zLo = c.zMin, zHi = c.zMax;
       if (zLo === undefined || zHi === undefined) {
         zLo = Infinity; zHi = -Infinity;
-        for (j = 0; j < ny; j++) for (i = 0; i < nx; i++) {
+        for (j = 0; j < ny0; j++) for (i = 0; i < nx0; i++) {
           var v = Z[j][i];
           if (isFinite(v)) { if (v < zLo) zLo = v; if (v > zHi) zHi = v; }
         }
+        /* uma folga em cima e embaixo: relevo encostado no teto da
+           caixa parece cortado */
+        var pad = (zHi - zLo) * 0.08;
+        zLo -= pad; zHi += pad;
       }
       if (!isFinite(zLo) || zHi - zLo < 1e-9) { zLo = 0; zHi = 1; }
 
@@ -834,8 +910,13 @@
       var gx = new Array(nx), gy = new Array(ny);
       for (i = 0; i < nx; i++) gx[i] = nx > 1 ? (i / (nx - 1)) * 2 - 1 : 0;
       for (j = 0; j < ny; j++) gy[j] = ny > 1 ? (j / (ny - 1)) * 2 - 1 : 0;
+      /* as grades das paredes e as marcas continuam nos nos de verdade,
+         nao nos pontos interpolados */
+      var gx0 = new Array(nx0), gy0 = new Array(ny0);
+      for (i = 0; i < nx0; i++) gx0[i] = nx0 > 1 ? (i / (nx0 - 1)) * 2 - 1 : 0;
+      for (j = 0; j < ny0; j++) gy0[j] = ny0 > 1 ? (j / (ny0 - 1)) * 2 - 1 : 0;
       function norm(v) { return isFinite(v) ? U.clamp((v - zLo) / (zHi - zLo), 0, 1) : 0; }
-      function zn(j2, i2) { return norm(Z[j2][i2]) * zTop; }
+      function zn(j2, i2) { return norm(ZF[j2][i2]) * zTop; }
 
       /* ---------- enquadramento ---------- */
       var bar = c.colorbar === false || narrow ? 0 : 78;
@@ -852,7 +933,7 @@
         for (i = 0; i < nx; i++) { P[j][i] = project(gx[i], gy[j], zn(j, i), sy_, cy_, se, ce); grow(P[j][i]); }
       }
       /* a caixa de referencia e a faixa dos rotulos entram no enquadramento */
-      var RIM = narrow ? 1.34 : 1.52;
+      var RIM = narrow ? 1.44 : 1.62;
       for (k = 0; k < 8; k++) {
         var rx = (k & 1) ? RIM : -RIM, ry = (k & 2) ? RIM : -RIM, rz = (k & 4) ? zTop : zFloor;
         grow(project(rx, ry, rz, sy_, cy_, se, ce));
@@ -879,8 +960,8 @@
       }
 
       var divs = narrow ? 2 : 4;
-      var stepX = Math.max(1, Math.round((nx - 1) / divs));
-      var stepY = Math.max(1, Math.round((ny - 1) / divs));
+      var stepX = Math.max(1, Math.round((nx0 - 1) / divs));
+      var stepY = Math.max(1, Math.round((ny0 - 1) / divs));
       var nz = c.zTicks || 5;
       if (narrow) nz = Math.min(nz, 3);   /* menos marcas: nao ha altura para mais */
 
@@ -910,8 +991,8 @@
 
         /* grade da parede: verticais no eixo livre, horizontais nos niveis */
         var freeStep = fixedAxis === 'x' ? stepY : stepX;
-        var freeN = fixedAxis === 'x' ? ny : nx;
-        var freeG = fixedAxis === 'x' ? gy : gx;
+        var freeN = fixedAxis === 'x' ? ny0 : nx0;
+        var freeG = fixedAxis === 'x' ? gy0 : gx0;
         for (var q = freeStep; q < freeN - 1; q += freeStep) {
           var lo = fixedAxis === 'x' ? PT(at, freeG[q], zFloor) : PT(freeG[q], at, zFloor);
           var hi = fixedAxis === 'x' ? PT(at, freeG[q], zTop) : PT(freeG[q], at, zTop);
@@ -935,8 +1016,8 @@
       for (k = 1; k < 4; k++) ctx.lineTo(fc[k][0], fc[k][1]);
       ctx.closePath(); ctx.fill();
       ctx.strokeStyle = THEME.grid; ctx.lineWidth = 1; ctx.stroke();
-      for (i = stepX; i < nx - 1; i += stepX) line(PT(gx[i], -1, zFloor), PT(gx[i], 1, zFloor), THEME.grid, 1);
-      for (j = stepY; j < ny - 1; j += stepY) line(PT(-1, gy[j], zFloor), PT(1, gy[j], zFloor), THEME.grid, 1);
+      for (i = stepX; i < nx0 - 1; i += stepX) line(PT(gx0[i], -1, zFloor), PT(gx0[i], 1, zFloor), THEME.grid, 1);
+      for (j = stepY; j < ny0 - 1; j += stepY) line(PT(-1, gy0[j], zFloor), PT(1, gy0[j], zFloor), THEME.grid, 1);
 
       /* ---------- curvas de nivel projetadas na base ---------- */
       var nIso = c.contours === undefined ? 9 : c.contours;
@@ -944,7 +1025,7 @@
         ctx.lineWidth = 1.25;
         for (k = 1; k < nIso; k++) {
           var lv = zLo + (zHi - zLo) * (k / nIso);
-          var segs = isoSegments(Z, gx, gy, lv);
+          var segs = isoSegments(ZF, gx, gy, lv);
           ctx.strokeStyle = rgb(k / nIso);
           ctx.globalAlpha = 0.75;
           ctx.beginPath();
@@ -958,15 +1039,44 @@
         }
       }
 
+      /* ---------- sombra do relevo no piso ---------- */
+      /* Cada face achatada na base, com pouca opacidade. Onde o relevo
+         e alto varias faces se sobrepoem e a mancha escurece sozinha:
+         sai de graca a nocao de que a superficie flutua sobre o
+         plano, que e metade da leitura de profundidade.            */
+      if (c.shadow !== false) {
+        ctx.globalAlpha = 0.055;
+        ctx.fillStyle = '#000';
+        for (j = 0; j < ny - 1; j++) {
+          for (i = 0; i < nx - 1; i++) {
+            var s00 = PT(gx[i] + 0.045, gy[j] + 0.045, zFloor);
+            var s10 = PT(gx[i + 1] + 0.045, gy[j] + 0.045, zFloor);
+            var s11 = PT(gx[i + 1] + 0.045, gy[j + 1] + 0.045, zFloor);
+            var s01 = PT(gx[i] + 0.045, gy[j + 1] + 0.045, zFloor);
+            var h4 = (zn(j, i) + zn(j, i + 1) + zn(j + 1, i + 1) + zn(j + 1, i)) / 4;
+            if (h4 <= 0.02) continue;
+            ctx.beginPath();
+            ctx.moveTo(s00[0], s00[1]); ctx.lineTo(s10[0], s10[1]);
+            ctx.lineTo(s11[0], s11[1]); ctx.lineTo(s01[0], s01[1]);
+            ctx.closePath(); ctx.fill();
+          }
+        }
+        ctx.globalAlpha = 1;
+      }
+
       /* ---------- superficie ---------- */
       var quads = [];
+      var dLo = Infinity, dHi = -Infinity;
       for (j = 0; j < ny - 1; j++) {
         for (i = 0; i < nx - 1; i++) {
           var p00 = P[j][i], p10 = P[j][i + 1], p11 = P[j + 1][i + 1], p01 = P[j + 1][i];
+          var dd = (p00.d + p10.d + p11.d + p01.d) / 4;
+          if (dd < dLo) dLo = dd;
+          if (dd > dHi) dHi = dd;
           quads.push({
-            d: (p00.d + p10.d + p11.d + p01.d) / 4,
+            d: dd,
             a: p00, b: p10, cc: p11, e: p01,
-            t: (norm(Z[j][i]) + norm(Z[j][i + 1]) + norm(Z[j + 1][i + 1]) + norm(Z[j + 1][i])) / 4,
+            t: (norm(ZF[j][i]) + norm(ZF[j][i + 1]) + norm(ZF[j + 1][i + 1]) + norm(ZF[j + 1][i])) / 4,
             ax: gx[i + 1] - gx[i], az: zn(j, i + 1) - zn(j, i),
             by: gy[j + 1] - gy[j], bz: zn(j + 1, i) - zn(j, i)
           });
@@ -974,14 +1084,43 @@
       }
       quads.sort(function (u, v2) { return v2.d - u.d; });
 
-      var LX = -0.42, LY = -0.5, LZ = 0.76;    /* luz vinda de cima e da esquerda */
+      /* Luz de cima e da esquerda, mais tres coisas que o modelo antigo
+         (so ambiente + difusa pelo modulo) nao tinha:
+           - brilho especular curto, que da a sensacao de material em
+             vez de papel colorido;
+           - luz de preenchimento fraca por baixo, senao a face voltada
+             para longe da luz vira um buraco preto;
+           - neblina pela profundidade, que afasta o fundo de verdade.
+         Tudo em uma conta por face, entao nao custa quadro.        */
+      var LX = -0.42, LY = -0.5, LZ = 0.76;
+      var llen = Math.sqrt(LX * LX + LY * LY + LZ * LZ);
+      LX /= llen; LY /= llen; LZ /= llen;
+      var HX = LX, HY = LY, HZ = LZ + 1;              /* meio caminho entre luz e olho */
+      var hlen = Math.sqrt(HX * HX + HY * HY + HZ * HZ) || 1;
+      HX /= hlen; HY /= hlen; HZ /= hlen;
+      var dRange = Math.max(dHi - dLo, 1e-6);
+      var fogR = bgRGB[0], fogG = bgRGB[1], fogB = bgRGB[2];
       var mesh = c.mesh === false ? null : (THEME.mesh || 'rgba(20,24,32,.34)');
+      var meshFine = mesh && fine === 1;
       for (k = 0; k < quads.length; k++) {
         var q2 = quads[k];
         var nX = -q2.az * q2.by, nY = -q2.ax * q2.bz, nZ = q2.ax * q2.by;
         var len = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1;
-        var lam = (nX * LX + nY * LY + nZ * LZ) / len;
-        ctx.fillStyle = rgb(q2.t, 0.66 + 0.34 * U.clamp(Math.abs(lam), 0, 1));
+        nX /= len; nY /= len; nZ /= len;
+        var lam = nX * LX + nY * LY + nZ * LZ;
+        var up = Math.abs(lam);
+        var spec = Math.pow(Math.max(nX * HX + nY * HY + nZ * HZ, 0), 26);
+        var shade = 0.52 + 0.44 * up + 0.16 * Math.max(nZ, 0);
+        var col = rampAt(stops, q2.t);
+        var fog = U.clamp((q2.d - dLo) / dRange, 0, 1);
+        fog = 0.30 * (1 - fog);                       /* o fundo e que some */
+        var rr = col[0] * shade + 255 * spec * 0.55;
+        var gg = col[1] * shade + 255 * spec * 0.55;
+        var bb2 = col[2] * shade + 255 * spec * 0.6;
+        ctx.fillStyle = 'rgb(' +
+          Math.round(U.clamp(rr * (1 - fog) + fogR * fog, 0, 255)) + ',' +
+          Math.round(U.clamp(gg * (1 - fog) + fogG * fog, 0, 255)) + ',' +
+          Math.round(U.clamp(bb2 * (1 - fog) + fogB * fog, 0, 255)) + ')';
         ctx.beginPath();
         ctx.moveTo(SX(q2.a), SY(q2.a));
         ctx.lineTo(SX(q2.b), SY(q2.b));
@@ -989,7 +1128,35 @@
         ctx.lineTo(SX(q2.e), SY(q2.e));
         ctx.closePath();
         ctx.fill();
-        if (mesh) { ctx.strokeStyle = mesh; ctx.lineWidth = 0.55; ctx.stroke(); }
+        /* na malha crua a borda de cada face e o proprio fio de malha;
+           na refinada isso viraria uma teia, entao ela e desenhada
+           depois, so nas linhas que existem na tabela */
+        if (meshFine) { ctx.strokeStyle = mesh; ctx.lineWidth = 0.55; ctx.stroke(); }
+        else { ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 0.6; ctx.stroke(); }
+      }
+
+      /* ---------- fio de malha sobre o relevo refinado ---------- */
+      if (mesh && !meshFine) {
+        ctx.strokeStyle = mesh; ctx.lineWidth = 0.9;
+        ctx.lineJoin = 'round';
+        for (j = 0; j < ny0; j++) {
+          var jf = Math.min(j * fine, ny - 1);
+          ctx.beginPath();
+          for (i = 0; i < nx; i++) {
+            var pp = P[jf][i];
+            i ? ctx.lineTo(SX(pp), SY(pp)) : ctx.moveTo(SX(pp), SY(pp));
+          }
+          ctx.stroke();
+        }
+        for (i = 0; i < nx0; i++) {
+          var iff = Math.min(i * fine, nx - 1);
+          ctx.beginPath();
+          for (j = 0; j < ny; j++) {
+            var pq = P[j][iff];
+            j ? ctx.lineTo(SX(pq), SY(pq)) : ctx.moveTo(SX(pq), SY(pq));
+          }
+          ctx.stroke();
+        }
       }
 
       /* ---------- eixo vertical, na quina do fundo ---------- */
@@ -1044,7 +1211,7 @@
         if (!force) {
           for (var z3 = 0; z3 < taken.length; z3++) {
             var o3 = taken[z3];
-            if (r2.l < o3.rt && r2.rt > o3.l && r2.t < o3.b && r2.b > o3.t) return;
+            if (r2.l < o3.rt && r2.rt > o3.l && r2.t < o3.b && r2.b > o3.t) return false;
           }
         }
         taken.push(r2);
@@ -1057,28 +1224,43 @@
         ctx.globalAlpha = 1;
         ctx.fillStyle = strong ? THEME.txtStrong : THEME.txt;
         ctx.fillText(txt, px, py);
+        return true;
+      }
+      /* o nome do eixo se afasta ate achar lugar livre: empurrar o
+         rotulo para fora custa uns pixels de moldura, enquanto
+         deixa-lo por cima come um numero da escala */
+      function axisChip(txt, axis, edge, r0) {
+        for (var a4 = 0; a4 < 4; a4++) {
+          var rr2 = r0 + a4 * 0.13;
+          var pp2 = axis === 'x' ? PT(0, edge * rr2, zFloor) : PT(edge * rr2, 0, zFloor);
+          if (chip(txt, pp2[0], pp2[1], axFont, true, a4 === 3)) return;
+        }
       }
 
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       var axFont = '600 11px system-ui,sans-serif';
       var tickFont = '10.5px ui-monospace,monospace';
       var xf = c.x.fmt || String, yf = c.y.fmt || String;
-      var axR = narrow ? 1.30 : 1.46, tkR = narrow ? 1.08 : 1.14;
+      /* o nome do eixo fica bem afastado das marcas: quando os dois
+         disputavam o mesmo anel, a regra de colisao apagava quase
+         todas as marcas e sobrava um numero solto por eixo */
+      var axR = narrow ? 1.44 : 1.60, tkR = narrow ? 1.06 : 1.12;
 
       if (markerLabel) chip(markerLabel.t, markerLabel.x, markerLabel.y, axFont, true, true);
-      if (c.xLabel) { var lx = PT(0, yEdge * axR, zFloor); chip(c.xLabel, lx[0], lx[1], axFont, true, true); }
-      if (c.yLabel) { var ly = PT(xEdge * axR, 0, zFloor); chip(c.yLabel, ly[0], ly[1], axFont, true, true); }
       for (k = 0; k < zTickLab.length; k++) {
         chip(zTickLab[k].t, zTickLab[k].p[0], zTickLab[k].p[1], tickFont, false, true);
       }
-      for (i = 0; i < nx; i += stepX) {
-        var t3 = PT(gx[i], yEdge * tkR, zFloor);
-        chip(xf(c.x.min + (c.x.max - c.x.min) * (i / (nx - 1))), t3[0], t3[1], tickFont, false);
+      /* as marcas primeiro, e elas e que reservam lugar */
+      for (i = 0; i < nx0; i += stepX) {
+        var t3 = PT(gx0[i], yEdge * tkR, zFloor);
+        chip(xf(c.x.min + (c.x.max - c.x.min) * (i / (nx0 - 1))), t3[0], t3[1], tickFont, false);
       }
-      for (j = 0; j < ny; j += stepY) {
-        var t4 = PT(xEdge * tkR, gy[j], zFloor);
-        chip(yf(c.y.min + (c.y.max - c.y.min) * (j / (ny - 1))), t4[0], t4[1], tickFont, false);
+      for (j = 0; j < ny0; j += stepY) {
+        var t4 = PT(xEdge * tkR, gy0[j], zFloor);
+        chip(yf(c.y.min + (c.y.max - c.y.min) * (j / (ny0 - 1))), t4[0], t4[1], tickFont, false);
       }
+      if (c.xLabel) axisChip(c.xLabel, 'x', yEdge, axR);
+      if (c.yLabel) axisChip(c.yLabel, 'y', xEdge, axR);
 
       /* ---------- barra de cores ---------- */
       if (bar) {

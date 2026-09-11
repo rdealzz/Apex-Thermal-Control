@@ -219,6 +219,35 @@
   var liveCell = { i: -1, j: -1 };
   var stopLive = null;
 
+  /* ------------------------------------------------------------
+     Como a superficie e desenhada. Fica salvo no navegador: quem
+     achou o angulo que gosta nao quer reencontrar toda visita.
+     ------------------------------------------------------------ */
+  var VIEW_DEF = { fit: 1, smooth: 3, mesh: 1, iso: 7, shadow: 1, relief: 90, ramp: 'map' };
+  var view = null;
+  function viewGet() {
+    if (view) return view;
+    view = {};
+    Object.keys(VIEW_DEF).forEach(function (k) { view[k] = VIEW_DEF[k]; });
+    var saved = U.store.get('surf', null);
+    if (saved && typeof saved === 'object') {
+      Object.keys(VIEW_DEF).forEach(function (k) {
+        if (k in saved) view[k] = saved[k];
+      });
+    }
+    return view;
+  }
+  function viewSave() { U.store.set('surf', viewGet()); }
+
+  /* tres paletas, e nenhuma delas arco-iris: a do proprio mapa, uma
+     termica de azul a laranja e uma de prata para quem quer ler o
+     relevo sem a cor disputando atencao */
+  var RAMPS = {
+    heat: ['#07203a', '#0a5f9c', '#12b6ff', '#8fd7e8', '#ffb020', '#ff5a2a'],
+    steel: ['#10141c', '#2b3442', '#5b6778', '#8e96a6', '#c2c8d4', '#f4f7fc'],
+    ice: ['#061826', '#0a3f6e', '#0a7fd4', '#12b6ff', '#3ff0e0', '#d9fbff']
+  };
+
   function TNaxes() { return { ni: ATC.Tune.rpmAxis.length, nj: ATC.Tune.loadAxis.length }; }
 
   function traceGrid() {
@@ -354,8 +383,71 @@
 
     h += '<div class="tune-side">' +
       '<div class="chart-box"><canvas id="tuneSurf"></canvas></div>' +
+      surfCtlHtml() +
       '<div class="tune-live" id="tuneLive"></div>' +
       '<div id="tuneOut"></div></div>';
+    h += '</div>';
+    return h;
+  }
+
+  /* ------------------------------------------------------------
+     Controles da superficie
+     ------------------------------------------------------------
+     Ficam colados no grafico porque e nele que se ve o efeito. Cada
+     um muda um so aspecto do desenho, e todos sobrevivem a recarga.
+     ------------------------------------------------------------ */
+  function segBtn(key, val, lab, cur, title) {
+    return '<button class="sv-b' + (String(cur) === String(val) ? ' on' : '') +
+      '" data-sv="' + key + '" data-svv="' + val + '"' +
+      (title ? ' title="' + title + '"' : '') + '>' + lab + '</button>';
+  }
+  /* o relevo responde enquanto o dedo esta no cursor; so o que fica
+     guardado espera soltar. Religado sempre que a barra e refeita. */
+  function wireRelief() {
+    var rel = document.getElementById('svRelief');
+    if (!rel || rel.__w) return;
+    rel.__w = 1;
+    rel.addEventListener('input', function () {
+      viewGet().relief = +rel.value;
+      var lab = document.getElementById('svReliefV');
+      if (lab) lab.textContent = rel.value + ' %';
+      tunePaint();
+    });
+    rel.addEventListener('change', viewSave);
+  }
+
+  function surfCtlHtml() {
+    var v = viewGet();
+    var h = '<div class="surf-ctl" id="surfCtl">';
+    h += '<div class="sv-row"><span class="sv-l">ESCALA</span><span class="sv-seg">' +
+      segBtn('fit', 1, 'ajustada', v.fit, 'Usa a faixa dos valores que estão no mapa — é onde um mapa quase plano mostra o relevo que tem') +
+      segBtn('fit', 0, 'cheia', v.fit, 'Usa a faixa inteira que o mapa aceita — é o que permite comparar dois mapas') +
+      '</span></div>';
+    h += '<div class="sv-row"><span class="sv-l">SUAVIZAR</span><span class="sv-seg">' +
+      segBtn('smooth', 1, 'cru', v.smooth, 'A tabela como ela é, uma face por célula') +
+      segBtn('smooth', 2, 'médio', v.smooth) +
+      segBtn('smooth', 3, 'alto', v.smooth) +
+      segBtn('smooth', 5, 'máximo', v.smooth, 'Interpolação entre os nós — nenhum valor é inventado, os nós continuam onde estavam') +
+      '</span></div>';
+    h += '<div class="sv-row"><span class="sv-l">PALETA</span><span class="sv-seg">' +
+      segBtn('ramp', 'map', 'do mapa', v.ramp) +
+      segBtn('ramp', 'heat', 'térmica', v.ramp) +
+      segBtn('ramp', 'ice', 'gelo', v.ramp) +
+      segBtn('ramp', 'steel', 'prata', v.ramp) +
+      '</span></div>';
+    h += '<div class="sv-row"><span class="sv-l">CURVAS</span><span class="sv-seg">' +
+      segBtn('iso', 0, 'sem', v.iso) +
+      segBtn('iso', 7, '7', v.iso) +
+      segBtn('iso', 13, '13', v.iso) +
+      '</span><span class="sv-sp"></span>' +
+      '<button class="sv-b' + (v.mesh ? ' on' : '') + '" data-sv="mesh" data-svv="' + (v.mesh ? 0 : 1) + '">malha</button>' +
+      '<button class="sv-b' + (v.shadow ? ' on' : '') + '" data-sv="shadow" data-svv="' + (v.shadow ? 0 : 1) + '">sombra</button>' +
+      '</div>';
+    h += '<div class="sv-row"><label class="sv-l" for="svRelief">RELEVO</label>' +
+      '<input type="range" id="svRelief" min="30" max="160" step="5" value="' + v.relief + '" aria-label="Altura do relevo">' +
+      '<span class="sv-v" id="svReliefV">' + v.relief + ' %</span>' +
+      '<button class="sv-b" data-svreset="1" title="Volta a vista e os ajustes ao padrão">reiniciar vista</button>' +
+      '</div>';
     h += '</div>';
     return h;
   }
@@ -389,16 +481,24 @@
     if (!TN || !app) return;
     var key = TN.openMap(), m = TN.maps[key], grid = TN.state()[key];
 
+    var vw = viewGet();
     G.surface($('#tuneSurf'), {
-      height: 300, z: grid, zMin: m.min, zMax: m.max,
+      height: 330, z: grid,
+      /* "cheia" usa a faixa inteira que o mapa aceita, e e o que
+         permite comparar dois mapas; "ajustada" usa a faixa dos
+         valores que estao ali, e e a unica em que um mapa quase
+         plano mostra o relevo que ele de fato tem */
+      zMin: vw.fit ? undefined : m.min, zMax: vw.fit ? undefined : m.max,
+      zScale: vw.relief / 100,
+      smooth: vw.smooth, mesh: !!vw.mesh, contours: vw.iso, shadow: !!vw.shadow,
       title: 'Mapa de ' + m.name.toLowerCase(),
       x: { min: TN.rpmAxis[0], max: TN.rpmAxis[TN.rpmAxis.length - 1],
            fmt: function (v) { return U.br(v / 1000, 1) + 'k'; } },
       y: { min: TN.loadAxis[0], max: TN.loadAxis[TN.loadAxis.length - 1],
            fmt: function (v) { return U.br(v, 0); } },
       xLabel: 'rotação (rpm)', yLabel: 'carga (%)', zLabel: m.name + ' (' + m.unit + ')',
-      zFmt: function (v) { return U.br(v, m.dec); }, zTicks: 4, contours: 7,
-      ramp: m.ramp, markerColor: '#ffffff',
+      zFmt: function (v) { return U.br(v, m.dec); }, zTicks: 4,
+      ramp: vw.ramp === 'map' ? m.ramp : RAMPS[vw.ramp] || m.ramp, markerColor: '#ffffff',
       marker: { x: TN.rpmAxis[TSEL.i], y: TN.loadAxis[TSEL.j], label: U.br(grid[TSEL.j][TSEL.i], m.dec) + ' ' + m.unit },
       hint: 'arraste para girar'
     });
@@ -533,6 +633,8 @@
       refreshTune();
     });
 
+    wireRelief();
+
     if (pane.__w) return;
     pane.__w = 1;
 
@@ -566,6 +668,30 @@
 
     /* ---- botoes ---- */
     pane.addEventListener('click', function (ev) {
+      /* ---- controles da superficie ---- */
+      var sv = ev.target.closest('[data-sv]');
+      if (sv) {
+        var v = viewGet(), key = sv.dataset.sv;
+        var raw = sv.dataset.svv;
+        v[key] = /^-?[\d.]+$/.test(raw) ? +raw : raw;
+        viewSave();
+        var host = sv.closest('.surf-ctl');
+        if (host) { host.outerHTML = surfCtlHtml(); wireRelief(); }
+        tunePaint();
+        if (A) A.play('tick');
+        return;
+      }
+      if (ev.target.closest('[data-svreset]')) {
+        view = null;
+        U.store.del('surf');
+        var cv0 = $('#tuneSurf');
+        if (cv0 && cv0.__surf) { cv0.__surf.yaw = -0.72; cv0.__surf.el = 0.56; cv0.__surf.yawV = 0; cv0.__surf.elV = 0; }
+        renderRemap();
+        if (A) A.play('relay');
+        if (M) M.toast('Vista e ajustes do gráfico reiniciados', null, 2000);
+        return;
+      }
+
       var tab = ev.target.closest('[data-map]');
       if (tab) { TN.openMap(tab.dataset.map); renderRemap(); if (A) A.play('tick'); return; }
 

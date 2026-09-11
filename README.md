@@ -186,6 +186,27 @@ resultado aparecendo na hora.
 O rastro e o ponto de operação são o que transformam a tabela de planilha em instrumento:
 dá para ver, em dez segundos de piloto virtual, que metade do mapa nunca é usada.
 
+### A superfície
+
+O relevo ao lado da tabela é desenhado por um renderizador próprio — sem biblioteca — e é
+configurável na barra logo abaixo dele:
+
+| Controle | O que faz |
+| --- | --- |
+| **Escala** | *ajustada* usa a faixa dos valores que estão no mapa, *cheia* usa a faixa inteira que o mapa aceita. Um mapa de combustível varia entre 97 e 113 num campo que vai de 40 a 340: na escala cheia ele é uma placa plana, na ajustada é o relevo que de fato tem |
+| **Suavizar** | interpolação Catmull-Rom entre os nós, de *cru* a *máximo*. Nenhum valor é inventado — os nós continuam exatamente onde estavam; o que muda é que as faces param de parecer origami |
+| **Paleta** | a do próprio mapa, térmica, gelo ou prata |
+| **Curvas** | nível projetado na base: nenhuma, 7 ou 13 |
+| **Malha** e **sombra** | o fio sobre o relevo e a mancha que ele projeta no piso |
+| **Relevo** | altura da superfície, de 30 a 160 % |
+
+Tudo fica salvo no navegador, e **reiniciar vista** devolve ângulo e ajustes ao padrão.
+
+O desenho em si ganhou quatro coisas: degradê de fundo em vez de chapado, brilho especular
+curto (é o que faz parecer material em vez de papel colorido), luz de preenchimento por
+baixo para a face contrária à luz não virar um buraco preto, e neblina por profundidade,
+que afasta o fundo de verdade. Tudo em uma conta por face — os 61 fps continuam de pé.
+
 Há quatro presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
 
 Embaixo da tabela ficam os módulos que dão sentido a ela. O mapa diz o que **pedir**; eles
