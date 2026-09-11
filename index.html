@@ -67,6 +67,7 @@
         <input type="range" class="snd-vol" id="sndVol" min="0" max="100" step="1" value="37"
                aria-label="Volume da interface" title="Volume da interface" hidden>
         <select class="skin-pick" id="skinPick" aria-label="Tema da bancada">
+          <option value="silver">Prata</option>
           <option value="carbon">Carbono</option>
           <option value="titanium">Titanium</option>
           <option value="nismo">Nismo</option>
@@ -900,6 +901,9 @@
     <p class="sh-sub">Mapa de injeção, ignição, pressão e mistura. Edite célula a célula e veja a consequência descer a cadeia inteira, do bico à temperatura.</p>
   </div>
 
+  <!-- o resultado vem antes da causa: e ele que se olha primeiro -->
+  <div class="hero" id="remapHero"></div>
+
   <div class="remap-shell">
     <div class="remap-pane" id="remapPane"></div>
   </div>
@@ -931,7 +935,7 @@
     <div class="ck ck-fuel">
       <div class="ck-h"><span class="ck-t">FUEL PRESSURE</span><span class="ck-s" id="ckFuelS">alvo 3,00 bar</span></div>
       <div class="ck-canvas"><canvas id="ckFuel"></canvas></div>
-      <div class="legend"><span><i style="background:#12b6ff"></i>real</span><span><i class="dash" style="color:#7b8699"></i>alvo</span></div>
+      <div class="legend"><span><i style="background:var(--acc)"></i>real</span><span><i class="dash" style="color:var(--ink-4)"></i>alvo</span></div>
     </div>
 
     <!-- bicos -->

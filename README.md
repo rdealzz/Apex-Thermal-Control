@@ -156,9 +156,17 @@ Os mesmos ajustes respondem no terminal: `bancada` lista os nove, `mistura +8`,
 `admissao 42`, `temperatura 88` e `auto off` mexem neles de lá — e o cursor na tela anda
 junto.
 
-Sete temas — Carbono, Titanium, Nismo, Midnight, Neo Tokyo, Factory e Race — trocam só os
-tokens de cor, então todo módulo segue junto, inclusive os canvas, que consultam a paleta
-na hora de desenhar.
+O tema de fábrica é **Prata**: grafite escuro, prata na estrutura (rótulos, cromo,
+contornos) e vermelho no que é valor — agulha, arco de pressão, os números que se leem de
+longe. É a paleta do carro da bancada, que é prata, com o vermelho que todo painel
+esportivo usa para dizer *olhe aqui*. O alarme continua se distinguindo do vermelho
+decorativo por ser mais claro, ter brilho próprio e pulsar: cor sozinha nunca foi sinal
+suficiente.
+
+Outros sete — Carbono (o azul elétrico anterior), Titanium, Nismo, Midnight, Neo Tokyo,
+Factory e Race — trocam só os tokens, então todo módulo segue junto, inclusive os canvas,
+que consultam a paleta na hora de desenhar. O conta-giros e o manômetro passaram a ler cor
+de token também, então trocar de tema troca os mostradores junto.
 
 O som da interface é sintetizado na hora com WebAudio — nenhum arquivo, nada que atrapalhe
 abrir offline — e tem cursor de volume ao lado do botão, que só aparece com o som ligado.
@@ -185,6 +193,14 @@ resultado aparecendo na hora.
 
 O rastro e o ponto de operação são o que transformam a tabela de planilha em instrumento:
 dá para ver, em dez segundos de piloto virtual, que metade do mapa nunca é usada.
+
+### A faixa de resultado
+
+Potência e torque são a resposta à pergunta que a tela inteira faz, e estavam num canto em
+corpo 17. Agora abrem a tela, em corpo grande, com a diferença para o mapa de fábrica ao
+lado — porque *171 cv* só quer dizer alguma coisa contra os 122 de onde se partiu. Ao lado
+deles, o estado do mapa: **MAPA LIMPO**, **DETONAÇÃO** ou **MISTURA POBRE**, com o painel
+inteiro vermelho e pulsando quando é um dos dois últimos.
 
 ### A superfície
 

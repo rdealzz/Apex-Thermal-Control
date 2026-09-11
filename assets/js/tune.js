@@ -28,25 +28,25 @@
   var MAPS = {
     fuel: {
       name: 'Combustível', unit: '%', dec: 0, min: 40, max: 340, step: 2,
-      ramp: ['#071b2e', '#0a6a9e', '#12b6ff', '#3ff0e0', '#ffb020', '#ff5a2a'],
+      ramp: ['#0c0f14', '#1e242d', '#3d4553', '#7b8593', '#c2c8d4', '#e02b1d'],
       note: 'Massa injetada em relação ao mapa de fábrica. Falta disso em carga alta empobrece a mistura e derrete pistão; excesso afoga e rouba potência.',
       base: function (rpm, load) { return 100 + 8 * (load / 100) + 4 * Math.sin(rpm / 1500); }
     },
     ign: {
       name: 'Ignição', unit: '° APMS', dec: 1, min: 0, max: 42, step: 0.5,
-      ramp: ['#0b1f33', '#12648f', '#2fe08a', '#ffb020', '#ff7a3d', '#ff3b30'],
+      ramp: ['#0c0f14', '#242a34', '#4e5765', '#98a1ae', '#d8a24a', '#ff3b30'],
       note: 'Avanço em graus antes do ponto morto superior. Mais avanço é mais potência até o limite de detonação — depois disso é prejuízo, e barulho de martelo.',
       base: function (rpm, load) { return 12 + 14 * (rpm / 6400) - 6 * (load / 100); }
     },
     boost: {
       name: 'Pressão', unit: 'bar', dec: 2, min: 0, max: 2.2, step: 0.05,
-      ramp: ['#0a1a2a', '#0a6a9e', '#12b6ff', '#8dbf4a', '#ffb020', '#ff5a2a'],
+      ramp: ['#0a0d12', '#1c222b', '#3a4250', '#8e96a6', '#d64a35', '#ff5a2a'],
       note: 'Pressão de sobrealimentação. O Cruze da bancada é aspirado, então o mapa de fábrica é zero — a pressão aqui é a do turbo que existe só nesta tela. Cada bar acima da atmosférica quase dobra a massa de ar, e exige combustível na mesma proporção.',
       base: function () { return 0; }
     },
     afr: {
       name: 'AFR alvo', unit: ':1', dec: 1, min: 10, max: 16, step: 0.1,
-      ramp: ['#ff3b30', '#ff7a3d', '#ffb020', '#2fe08a', '#12b6ff', '#0a3f6e'],
+      ramp: ['#e02b1d', '#a8523f', '#6d6a68', '#8e96a6', '#aeb6c4', '#5c6b7d'],
       note: 'Relação ar-combustível desejada. 12,5:1 é onde mora a potência; 14,7:1 economiza; abaixo de 11 lava o cilindro.',
       base: function (rpm, load) { return 14.7 - 2.4 * Math.pow(load / 100, 1.6); }
     }

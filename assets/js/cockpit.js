@@ -86,8 +86,10 @@
     ctx.lineWidth = R * 0.10;
     ctx.strokeStyle = 'rgba(255,255,255,.07)';
     ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,59,48,.85)';
+    ctx.strokeStyle = css('--crit', '#ff3b30');
+    ctx.globalAlpha = 0.85;
     ctx.beginPath(); ctx.arc(cx, cy, R, a0 + span * (lim.cut / SCALE), a1); ctx.stroke();
+    ctx.globalAlpha = 1;
 
     /* marcas */
     for (var i = 0; i <= 16; i++) {
@@ -109,7 +111,11 @@
     }
 
     /* arco de valor com halo */
-    var col = s.rpm > lim.cut ? '#ff3b30' : s.rpm > 5800 ? '#ffb020' : '#3ff0e0';
+    /* a cor vem dos tokens: trocar de tema troca o mostrador junto,
+       sem uma linha aqui */
+    var col = s.rpm > lim.cut ? css('--crit', '#ff3b30')
+            : s.rpm > 5800 ? css('--warn', '#ffb020')
+            : css('--cyan', '#3ff0e0');
     ctx.lineCap = 'round';
     ctx.globalAlpha = 0.16; ctx.lineWidth = R * 0.24; ctx.strokeStyle = col;
     ctx.beginPath(); ctx.arc(cx, cy, R, a0, a0 + span * Math.max(frac, 0.002)); ctx.stroke();
@@ -127,21 +133,21 @@
     ctx.lineTo(R * 0.86, R * 0.011); ctx.lineTo(-R * 0.07, R * 0.034);
     ctx.closePath(); ctx.fill();
     ctx.restore();
-    ctx.fillStyle = '#0a0d13';
+    ctx.fillStyle = css('--canvas', '#0a0d13');
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.09, 0, 6.284); ctx.fill();
     ctx.strokeStyle = col; ctx.lineWidth = R * 0.018;
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.09, 0, 6.284); ctx.stroke();
 
     /* leitura */
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#e9eef7';
+    ctx.fillStyle = css('--ink', '#e9eef7');
     ctx.font = '600 ' + Math.round(R * 0.30) + 'px ui-monospace,monospace';
     ctx.fillText(U.br(s.rpm, 0), cx, cy + R * 0.46);
     ctx.font = '600 ' + Math.max(9, Math.round(R * 0.10)) + 'px ui-monospace,monospace';
-    ctx.fillStyle = '#7b8699';
+    ctx.fillStyle = css('--ink-3', '#7b8699');
     ctx.fillText('rpm', cx, cy + R * 0.64);
     if (s.limiter) {
-      ctx.fillStyle = '#ff3b30';
+      ctx.fillStyle = css('--crit', '#ff3b30');
       ctx.font = '700 ' + Math.max(10, Math.round(R * 0.11)) + 'px ui-monospace,monospace';
       ctx.fillText('REV LIMIT', cx, cy - R * 0.42);
     }
@@ -169,8 +175,10 @@
     ctx.lineWidth = R * 0.11; ctx.lineCap = 'butt';
     ctx.strokeStyle = 'rgba(255,255,255,.07)';
     ctx.beginPath(); ctx.arc(cx, cy, R, a0, a1); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,59,48,.8)';
+    ctx.strokeStyle = css('--crit', '#ff3b30');
+    ctx.globalAlpha = 0.8;
     ctx.beginPath(); ctx.arc(cx, cy, R, a0 + span * ((1.7 - lo) / (hi - lo)), a1); ctx.stroke();
+    ctx.globalAlpha = 1;
 
     for (var i = 0; i <= 8; i++) {
       var ang = a0 + span * (i / 8);
@@ -181,7 +189,7 @@
       ctx.stroke();
     }
 
-    var col = s.boost > 1.7 ? '#ff3b30' : '#ff8a1f';
+    var col = s.boost > 1.7 ? css('--crit', '#ff3b30') : css('--boost', '#ff8a1f');
     ctx.lineCap = 'round';
     ctx.globalAlpha = 0.18; ctx.lineWidth = R * 0.26; ctx.strokeStyle = col;
     ctx.beginPath(); ctx.arc(cx, cy, R, a0, a0 + span * Math.max(frac, 0.002)); ctx.stroke();
@@ -190,20 +198,20 @@
 
     var a2 = a0 + span * frac;
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(a2);
-    ctx.fillStyle = '#e9eef7';
+    ctx.fillStyle = css('--ink', '#e9eef7');
     ctx.beginPath();
     ctx.moveTo(-R * 0.07, -R * 0.03); ctx.lineTo(R * 0.84, -R * 0.01);
     ctx.lineTo(R * 0.84, R * 0.01); ctx.lineTo(-R * 0.07, R * 0.03);
     ctx.closePath(); ctx.fill(); ctx.restore();
-    ctx.fillStyle = '#0a0d13';
+    ctx.fillStyle = css('--canvas', '#0a0d13');
     ctx.beginPath(); ctx.arc(cx, cy, R * 0.09, 0, 6.284); ctx.fill();
 
     ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = '#e9eef7';
+    ctx.fillStyle = css('--ink', '#e9eef7');
     ctx.font = '600 ' + Math.round(R * 0.34) + 'px ui-monospace,monospace';
     ctx.fillText(U.br(s.boost, 2), cx, cy + R * 0.48);
     ctx.font = '600 ' + Math.max(9, Math.round(R * 0.12)) + 'px ui-monospace,monospace';
-    ctx.fillStyle = '#7b8699';
+    ctx.fillStyle = css('--ink-3', '#7b8699');
     ctx.fillText('bar', cx, cy + R * 0.68);
   }
 
@@ -236,9 +244,12 @@
       data.forEach(function (d, i) { i ? ctx.lineTo(px(i), py(d.b)) : ctx.moveTo(px(i), py(d.b)); });
       ctx.stroke(); ctx.setLineDash([]);
     }
+    /* o preenchimento sai da propria cor da linha, com transparencia:
+       assim o tema troca os dois de uma vez */
+    var base = opt.color || css('--acc', '#12b6ff');
     var grad = ctx.createLinearGradient(0, padT, 0, padT + ph);
-    grad.addColorStop(0, opt.fill || 'rgba(18,182,255,.22)');
-    grad.addColorStop(1, 'rgba(18,182,255,0)');
+    grad.addColorStop(0, 'color-mix(in srgb,' + base + ' 26%,transparent)');
+    grad.addColorStop(1, 'color-mix(in srgb,' + base + ' 0%,transparent)');
     ctx.beginPath();
     data.forEach(function (d, i) { i ? ctx.lineTo(px(i), py(d.a)) : ctx.moveTo(px(i), py(d.a)); });
     ctx.lineTo(px(data.length - 1), padT + ph); ctx.lineTo(px(0), padT + ph); ctx.closePath();
@@ -789,8 +800,8 @@
 
     if (remap) {
       drawBoost(s);
-      drawTrace('ckFuel', 0.42, 92, 150, traceFuel, { lo: 2.4, hi: 5.4, dec: 1, color: '#12b6ff', showB: true });
-      drawTrace('ckAfrTrace', 0.30, 62, 104, traceAfr, { lo: 10, hi: 17, dec: 1, color: '#3ff0e0', fill: 'rgba(63,240,224,.20)', showB: true });
+      drawTrace('ckFuel', 0.42, 92, 150, traceFuel, { lo: 2.4, hi: 5.4, dec: 1, color: css('--acc', '#12b6ff'), showB: true });
+      drawTrace('ckAfrTrace', 0.30, 62, 104, traceAfr, { lo: 10, hi: 17, dec: 1, color: css('--cyan', '#3ff0e0'), showB: true });
       paintTurbo(s);
     }
     if (banc) {

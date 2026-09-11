@@ -324,6 +324,7 @@
     var m = TN.maps[key];
     var grid = st[key];
     var stock = TN.stock(key);
+    var rg = gridRange(grid);
 
     var h = '<p class="ep-sub">' + m.note + '</p>';
 
@@ -345,7 +346,7 @@
     for (var j = TN.loadAxis.length - 1; j >= 0; j--) {
       h += '<tr><th>' + U.br(TN.loadAxis[j], 0) + ' %</th>';
       for (var i = 0; i < TN.rpmAxis.length; i++) {
-        h += cellHtml(i, j, grid, stock, m);
+        h += cellHtml(i, j, grid, stock, m, rg);
       }
       h += '</tr>';
     }
@@ -384,8 +385,7 @@
     h += '<div class="tune-side">' +
       '<div class="chart-box"><canvas id="tuneSurf"></canvas></div>' +
       surfCtlHtml() +
-      '<div class="tune-live" id="tuneLive"></div>' +
-      '<div id="tuneOut"></div></div>';
+      '<div class="tune-live" id="tuneLive"></div></div>';
     h += '</div>';
     return h;
   }
@@ -452,11 +452,29 @@
     return h;
   }
 
-  /* uma celula: valor, cor pela faixa do mapa, e as marcas de
+  /* A cor da celula sai da faixa dos valores que estao na tabela, nao
+     da faixa inteira que o mapa aceita. Um mapa de combustivel vive
+     entre 98 e 112 num campo que vai de 40 a 340: normalizado pelo
+     campo, ele fica todo da mesma cor e a tabela para de informar. */
+  function gridRange(g) {
+    var lo = Infinity, hi = -Infinity;
+    for (var j = 0; j < g.length; j++) {
+      for (var i = 0; i < g[j].length; i++) {
+        var v = g[j][i];
+        if (!isFinite(v)) continue;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      }
+    }
+    if (!isFinite(lo) || hi - lo < 1e-9) { hi = lo + 1; }
+    return { lo: lo, hi: hi };
+  }
+
+  /* uma celula: valor, cor pela faixa da tabela, e as marcas de
      selecao, ancora, rastro e ponto de operacao */
-  function cellHtml(i, j, grid, stock, m) {
+  function cellHtml(i, j, grid, stock, m, rg) {
     var v = grid[j][i];
-    var t = (v - m.min) / Math.max(m.max - m.min, 1e-9);
+    var t = (v - rg.lo) / (rg.hi - rg.lo);
     var cls = 'tc';
     if (i === TSEL.i && j === TSEL.j) cls += ' on';
     if (inBox(i, j)) cls += ' sel';
@@ -505,24 +523,64 @@
 
     paintSelInfo();
 
+    paintHero();
+  }
+
+  /* ------------------------------------------------------------
+     A faixa de resultado
+     ------------------------------------------------------------
+     Potencia e torque sao a resposta a pergunta que a tela inteira
+     faz, e estavam num canto, em corpo 17. Agora abrem a tela, em
+     corpo grande, com a diferenca para o mapa de fabrica ao lado —
+     porque "171 cv" so quer dizer alguma coisa contra os 122 de
+     onde se partiu.
+     ------------------------------------------------------------ */
+  var STOCK_CACHE = null;
+  function stockPeak() {
+    if (STOCK_CACHE) return STOCK_CACHE;
+    var TN = ATC.Tune;
+    var save = TN.snapshot();
+    TN.reset();
     var sw = TN.sweep();
-    var danger = sw.knockPct > 2 || sw.leanPct > 2;
-    var out = $('#tuneOut');
-    if (!out) return;
-    out.innerHTML =
-      '<div class="ecu-grid" style="margin-top:12px">' +
-      tile('POTÊNCIA MÁXIMA', U.br(sw.peakPower.power, 0), 'cv a ' + U.br(sw.peakPower.rpm, 0) + ' rpm',
-           danger ? 'warn' : 'good', sw.peakPower.power / 400) +
-      tile('TORQUE MÁXIMO', U.br(sw.peakTorque.torque, 0), 'N·m a ' + U.br(sw.peakTorque.rpm, 0) + ' rpm',
-           danger ? 'warn' : 'good', sw.peakTorque.torque / 500) +
-      '</div>' +
-      '<div class="tune-alert' + (danger ? ' bad' : ' ok') + '">' +
-      (sw.knockPct > 2
-        ? '<b>DETONAÇÃO</b> em ' + U.br(sw.knockPct, 0) + '% da faixa — o avanço passou do limite que esta pressão aguenta. Recue a ignição ou baixe a pressão.'
-        : sw.leanPct > 2
-          ? '<b>MISTURA POBRE</b> em ' + U.br(sw.leanPct, 0) + '% da faixa sob carga alta — falta combustível para o ar que está entrando. É assim que se derrete pistão.'
-          : '<b>MAPA LIMPO</b> — sem detonação e sem empobrecimento na faixa varrida.') +
+    STOCK_CACHE = { p: sw.peakPower.power, t: sw.peakTorque.torque };
+    TN.restore(save);
+    return STOCK_CACHE;
+  }
+
+  function heroCell(lab, val, unit, at, base, cls) {
+    var d = val - base;
+    var sig = d >= 0 ? '+' : '−';
+    return '<div class="hero-c ' + (cls || '') + '">' +
+      '<span class="hc-l">' + lab + '</span>' +
+      '<span class="hc-v">' + U.br(val, 0) + '<small>' + unit + '</small></span>' +
+      '<span class="hc-s">' + at + '</span>' +
+      '<span class="hc-d' + (Math.abs(d) < 0.5 ? ' flat' : d > 0 ? ' up' : ' dn') + '">' +
+      sig + U.br(Math.abs(d), 0) + ' ' + unit + ' sobre o original</span>' +
+      '<span class="hc-bar"><i style="--f:' + U.clamp(val / (unit === 'cv' ? 300 : 400), 0, 1).toFixed(3) + '"></i></span>' +
       '</div>';
+  }
+
+  function paintHero() {
+    var host = $('#remapHero');
+    if (!host || !ATC.Tune) return;
+    var sw = ATC.Tune.sweep(), st = stockPeak();
+    var knock = sw.knockPct > 2, lean = sw.leanPct > 2;
+    var danger = knock || lean;
+    host.className = 'hero' + (danger ? ' bad' : '');
+    host.innerHTML =
+      heroCell('POTÊNCIA MÁXIMA', sw.peakPower.power, 'cv',
+               U.br(sw.peakPower.rpm, 0) + ' rpm', st.p) +
+      heroCell('TORQUE MÁXIMO', sw.peakTorque.torque, 'N·m',
+               U.br(sw.peakTorque.rpm, 0) + ' rpm', st.t) +
+      '<div class="hero-st' + (danger ? ' bad' : ' ok') + '">' +
+      '<span class="hs-t">' + (knock ? 'DETONAÇÃO' : lean ? 'MISTURA POBRE' : 'MAPA LIMPO') + '</span>' +
+      '<span class="hs-d">' +
+      (knock
+        ? 'em ' + U.br(sw.knockPct, 0) + '% da faixa — o avanço passou do limite que esta pressão aguenta. Recue a ignição ou baixe a pressão.'
+        : lean
+          ? 'em ' + U.br(sw.leanPct, 0) + '% da faixa sob carga alta — falta combustível para o ar que está entrando. É assim que se derrete pistão.'
+          : 'sem detonação e sem empobrecimento na faixa varrida.') +
+      '</span></div>';
   }
 
   /* a linha que resume a selecao: quantas celulas, e o que ha
@@ -793,6 +851,7 @@
     var stock = TN.stock(TN.openMap()), tg = traceGrid();
     var pane = $('#remapPane');
     if (!pane) return;
+    var rg = gridRange(g);
     pane.querySelectorAll('.tc').forEach(function (c) {
       var i = +c.dataset.i, j = +c.dataset.j, v = g[j][i];
       var txt = deltaView ? (function () {
@@ -800,7 +859,7 @@
         return (d > 0 ? '+' : '') + U.br(d, m.dec);
       })() : U.br(v, m.dec);
       if (c.textContent !== txt) c.textContent = txt;
-      c.style.setProperty('--t', ((v - m.min) / Math.max(m.max - m.min, 1e-9)).toFixed(3));
+      c.style.setProperty('--t', ((v - rg.lo) / (rg.hi - rg.lo)).toFixed(3));
       if (deltaView) {
         var d2 = v - stock[j][i];
         c.style.setProperty('--d', U.clamp(d2 / Math.max(m.max - m.min, 1e-9) * 3, -1, 1).toFixed(3));
@@ -1038,8 +1097,8 @@
        junto — inclusive os canvas, que leem cor na hora de desenhar */
     var sk = $('#skinPick');
     if (sk) {
-      var saved = 'carbon';
-      try { saved = localStorage.getItem('apex.skin') || 'carbon'; } catch (e) {}
+      var saved = 'silver';
+      try { saved = localStorage.getItem('apex.skin') || 'silver'; } catch (e) {}
       applySkin(saved);
       sk.value = saved;
       sk.addEventListener('change', function () {
@@ -1067,7 +1126,8 @@
 
   function applySkin(name) {
     var root = document.documentElement;
-    if (name && name !== 'carbon') root.dataset.skin = name;
+    /* o tema de fabrica e o que nao carrega atributo nenhum */
+    if (name && name !== 'silver') root.dataset.skin = name;
     else delete root.dataset.skin;
     /* os desenhos guardam assinatura do ultimo quadro: invalidar
        obriga todos a se redesenharem com a paleta nova            */

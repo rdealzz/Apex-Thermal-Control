@@ -267,9 +267,15 @@
   border:1px solid transparent;border-radius:5px;cursor:pointer;
   padding:7px 4px;text-align:center;font-size:12px;font-weight:600;white-space:nowrap;
   color:#fff;
+  /* grafite -> prata -> vermelho, na mesma familia do tema. A escala
+     antiga varria o circulo de matiz inteiro, o que e arco-iris: bonito
+     de longe e impossivel de ordenar de perto. Esta tem uma direcao so,
+     e o valor alto e o que puxa o olho. */
   background:
-    linear-gradient(0deg, rgba(0,0,0,.28), rgba(0,0,0,.28)),
-    hsl(calc(215 - var(--t,0) * 215), 78%, calc(28% + var(--t,0) * 26%));
+    linear-gradient(0deg, rgba(0,0,0,.26), rgba(0,0,0,.26)),
+    color-mix(in srgb,
+      var(--boost) calc(max(var(--t,0) - 0.5, 0) * 200%),
+      color-mix(in srgb, var(--silver-3) calc(min(var(--t,0), 0.5) * 200%), var(--surface-3)));
   transition:transform .12s ease,border-color .12s ease;
 }
 /* a celula sob o ponteiro cresce e sobe: a tabela e densa, e sem
@@ -336,6 +342,60 @@
 .tune-hint{font-size:11.2px;color:var(--ink-4);margin:9px 0 0;line-height:1.6}
 .tune-hint b{color:var(--ink-3);font-family:var(--mono);font-size:10.5px}
 
+/* ---------- faixa de resultado ----------
+   Abre a tela porque e a resposta, nao o detalhe. Numero grande,
+   prata no rotulo e vermelho no valor: e assim que instrumento
+   esportivo separa o que se le de longe do que se le de perto. */
+.hero{
+  display:grid;gap:12px;margin:0 0 16px;
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr);
+}
+@media (max-width:980px){.hero{grid-template-columns:1fr 1fr}.hero-st{grid-column:span 2}}
+@media (max-width:560px){.hero{grid-template-columns:1fr}.hero-st{grid-column:span 1}}
+.hero-c,.hero-st{
+  border:1px solid var(--hair-strong);border-radius:var(--r);
+  padding:14px 16px 13px;position:relative;overflow:hidden;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--surface) 96%,transparent),color-mix(in srgb,var(--canvas-2) 96%,transparent));
+  box-shadow:var(--sh-2);
+  display:flex;flex-direction:column;gap:3px;
+}
+.hero-c::before,.hero-st::before{
+  content:"";position:absolute;left:14px;right:14px;top:0;height:1px;
+  background:var(--chrome-line);opacity:.6;pointer-events:none;
+}
+.hc-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;color:var(--acc)}
+.hc-v{
+  font-family:var(--mono);font-size:44px;line-height:1.02;font-weight:700;
+  color:var(--boost);letter-spacing:-.03em;margin-top:2px;
+  text-shadow:0 0 26px color-mix(in srgb,var(--boost) 38%,transparent);
+}
+.hc-v small{font-size:14px;font-weight:600;color:var(--ink-3);margin-left:6px;letter-spacing:0}
+.hc-s{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.hc-d{font-family:var(--mono);font-size:10.5px;color:var(--ink-4);margin-top:1px}
+.hc-d.up{color:var(--ok)}
+.hc-d.dn{color:var(--warn)}
+.hc-bar{display:block;height:4px;border-radius:3px;background:var(--surface-3);margin-top:9px;overflow:hidden}
+.hc-bar i{
+  display:block;height:100%;border-radius:3px;transform:scaleX(var(--f,0));transform-origin:left center;
+  background:linear-gradient(90deg,var(--acc-2),var(--boost));
+  transition:transform .45s cubic-bezier(.2,.8,.25,1);
+}
+.hero.bad .hc-v{color:var(--crit)}
+.hero.bad .hc-bar i{background:linear-gradient(90deg,var(--warn),var(--crit))}
+
+.hero-st{justify-content:center;gap:6px}
+.hs-t{
+  font-family:var(--mono);font-size:17px;font-weight:700;letter-spacing:.16em;
+  color:var(--ok);
+}
+.hs-d{font-size:12.5px;line-height:1.55;color:var(--ink-2)}
+.hero-st.ok{border-color:color-mix(in srgb,var(--ok) 34%,transparent)}
+.hero-st.bad{border-color:color-mix(in srgb,var(--crit) 46%,transparent);background:var(--crit-soft)}
+.hero-st.bad .hs-t{color:var(--crit)}
+@media (prefers-reduced-motion:no-preference){
+  .hero-st.bad .hs-t{animation:knockPulse 1.1s ease-in-out infinite}
+}
+
 /* a etiqueta do cabecalho das telas: um LED e o nome do barramento,
    como um scanner diz que achou a central */
 .badge.live{
@@ -400,17 +460,9 @@
 .tune-live .tl-m b{color:var(--cyan);font-weight:600}
 
 .tune-side{min-width:0}
-.tune-alert{
-  margin-top:12px;padding:11px 14px;border-radius:10px;font-size:12.5px;line-height:1.5;
-  border:1px solid var(--hair);background:var(--surface-2);color:var(--ink-2);
-}
-.tune-alert b{font-family:var(--mono);letter-spacing:.1em}
-.tune-alert.ok{border-color:color-mix(in srgb,var(--ok) 40%,transparent);background:var(--ok-soft)}
-.tune-alert.ok b{color:var(--ok)}
-.tune-alert.bad{border-color:color-mix(in srgb,var(--crit) 45%,transparent);background:var(--crit-soft)}
-.tune-alert.bad b{color:var(--crit);animation:knockPulse 1.1s ease-in-out infinite}
+/* o aviso do mapa mudou de lugar: agora abre a tela, na faixa de
+   resultado. O pulso ficou, porque cor sozinha nunca foi sinal. */
 @keyframes knockPulse{0%,100%{opacity:1}50%{opacity:.45}}
-@media (prefers-reduced-motion:reduce){.tune-alert.bad b{animation:none}}
 
 
 /* ============================================================
@@ -671,6 +723,31 @@
    de tema nao pede uma linha de codigo em nenhum deles — nem nos
    canvas, que consultam as variaveis na hora de desenhar.
    ============================================================ */
+/* PRATA — o tema de fabrica. Escuro de grafite, prata na estrutura
+   (rotulos, cromo, contornos) e vermelho no que e valor: agulha,
+   arco de pressao, os numeros que se le de longe. E a paleta do
+   carro da bancada, que e prata, com o vermelho que todo painel
+   esportivo usa para dizer "olhe aqui".
+
+   O alarme continua se distinguindo do vermelho decorativo por ser
+   mais claro, ter brilho proprio e pulsar — cor sozinha nunca foi
+   sinal suficiente. */
+[data-mode="speed"]:not([data-skin]){
+  --acc:#c6ccd8;--acc-2:#7d8696;--acc-soft:rgba(198,204,216,.10);--acc-ring:rgba(198,204,216,.26);
+  --acc-ink:#0a0c10;--cyan:#eef1f6;--boost:#e02b1d;
+  --ok:#57c98a;--ok-soft:rgba(87,201,138,.12);
+  --warn:#e0a63a;--warn-soft:rgba(224,166,58,.12);
+  --hot:#ff6a4a;--hot-soft:rgba(255,106,74,.12);
+  --crit:#ff4c3d;--crit-soft:rgba(255,76,61,.16);
+  --canvas:#07080a;--canvas-2:#0b0d11;--surface:#101216;--surface-2:#15181e;--surface-3:#1c2028;
+  --hair:#20242c;--hair-2:#191d24;--hair-strong:#2e343f;
+}
+/* CARBONO — o azul eletrico de antes, agora como opcao */
+[data-mode="speed"][data-skin="carbon"]{
+  --acc:#12b6ff;--acc-2:#0a7fd4;--acc-soft:rgba(18,182,255,.12);--acc-ring:rgba(18,182,255,.30);
+  --acc-ink:#04121c;--cyan:#3ff0e0;--boost:#ff8a1f;
+  --canvas:#06070a;--canvas-2:#0a0c11;--surface:#0e1117;--surface-2:#121620;--surface-3:#171c27;
+}
 [data-mode="speed"][data-skin="titanium"]{
   --acc:#9fb3c8;--acc-2:#6d8299;--acc-soft:rgba(159,179,200,.12);--acc-ring:rgba(159,179,200,.3);
   --acc-ink:#0d1219;--cyan:#d6e2ee;--boost:#c9a227;
