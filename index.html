@@ -64,6 +64,8 @@
             <path d="M14 7.5l3.5 5M17.5 7.5l-3.5 5" class="snd-off"/>
           </svg>
         </button>
+        <input type="range" class="snd-vol" id="sndVol" min="0" max="100" step="1" value="37"
+               aria-label="Volume da interface" title="Volume da interface" hidden>
         <select class="skin-pick" id="skinPick" aria-label="Tema da bancada">
           <option value="carbon">Carbono</option>
           <option value="titanium">Titanium</option>
@@ -905,6 +907,7 @@
     <div class="ck ck-tach">
       <div class="ck-h"><span class="ck-t">ENGINE SPEED</span><span class="ck-s" id="ckGearLab">GEAR 3</span></div>
       <div class="shift-strip" id="ckShift" aria-hidden="true"></div>
+      <span class="led-tip" id="ckLedTip" aria-hidden="true"></span>
       <div class="ck-canvas"><canvas id="ckTach"></canvas></div>
       <button class="throttle" id="ckThrottle" aria-label="Acelerador — segure para acelerar">
         <span class="thr-fill" id="ckThrFill"></span>
@@ -951,6 +954,42 @@
     <div class="ck ck-sens">
       <div class="ck-h"><span class="ck-t">CAN BUS</span><span class="ck-s" id="ckBusS">16 sensores</span></div>
       <div class="sens-grid" id="ckSens"></div>
+    </div>
+
+    <!-- controle de pressao -->
+    <div class="ck ck-turbo">
+      <div class="ck-h"><span class="ck-t">TURBO CONTROL</span><span class="ck-s" id="ckTbS">spool 0 %</span></div>
+      <p class="cal-intro">A wastegate põe o piso e o solenoide segura a haste fechada mais tempo. Nenhum dos dois sozinho chega no alvo — e passar do teto tira a injeção até a coluna baixar.</p>
+      <div class="pot"><label class="pot-l" for="ckSol">SOLENOIDE</label>
+        <input type="range" id="ckSol" min="0" max="100" step="1" value="60"><span class="pot-v" id="ckSolV">60 %</span></div>
+      <div class="pot"><label class="pot-l" for="ckOver">CORTE (OVERBOOST)</label>
+        <input type="range" id="ckOver" min="0.6" max="2.2" step="0.05" value="1.9"><span class="pot-v" id="ckOverV">1,90 bar</span></div>
+      <div class="pot"><label class="pot-l" for="ckLcRpm">LAUNCH RPM</label>
+        <input type="range" id="ckLcRpm" min="2000" max="6500" step="50" value="4200"><span class="pot-v" id="ckLcRpmV">4200</span></div>
+      <div class="pot"><label class="pot-l" for="ckLcBoost">LAUNCH BOOST</label>
+        <input type="range" id="ckLcBoost" min="0" max="2" step="0.05" value="0.6"><span class="pot-v" id="ckLcBoostV">0,60 bar</span></div>
+
+      <div class="gear-boost">
+        <div class="cal-t">PRESSÃO POR MARCHA</div>
+        <div class="gb-row" id="ckGb"></div>
+      </div>
+      <p class="cal-read" id="ckTbRead">—</p>
+    </div>
+
+    <!-- data logger -->
+    <div class="ck ck-log">
+      <div class="ck-h"><span class="ck-t">DATA LOGGER</span><span class="ck-s" id="ckLogS">gravando</span></div>
+      <div class="log-chans" id="ckLogChans"></div>
+      <div class="ck-canvas"><canvas id="ckLog"></canvas></div>
+      <div class="log-ctl">
+        <button class="knob wide" id="ckLogRec" aria-pressed="true">⏸ PAUSAR</button>
+        <label class="log-sl"><span>JANELA</span>
+          <input type="range" id="ckLogZoom" min="4" max="100" step="1" value="100" aria-label="Tamanho da janela"></label>
+        <label class="log-sl"><span>POSIÇÃO</span>
+          <input type="range" id="ckLogPan" min="0" max="100" step="0.5" value="100" aria-label="Posição na linha do tempo"></label>
+        <button class="knob wide" id="ckLogClear">LIMPAR</button>
+      </div>
+      <p class="cal-read" id="ckLogRead">passe o ponteiro sobre o traço para ler o instante · clique para marcar A e B</p>
     </div>
 
     <!-- bancada de calibracao -->

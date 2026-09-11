@@ -21,6 +21,7 @@
   var TRACE_N = 190;
 
   function $(s) { return document.querySelector(s); }
+  function pad(v, n) { v = String(v); while (v.length < n) v = ' ' + v; return v; }
   function on() { return document.documentElement.dataset.mode === 'speed'; }
   function visible(id) { var e = document.getElementById(id); return e && !e.hidden; }
 
@@ -255,6 +256,319 @@
   }
 
   /* ============================================================
+     Data logger
+     ------------------------------------------------------------
+     Um anel de amostras a 10 Hz, tres minutos de memoria. Janela e
+     posicao sao dois cursores em vez de uma roda do mouse: numa
+     pagina que rola, roda do mouse sobre um grafico e armadilha.
+
+     Cada canal tem escala propria e e desenhado normalizado, senao
+     rotacao em milhares esmaga pressao em decimos no mesmo eixo. A
+     leitura embaixo e que devolve as unidades.
+     ============================================================ */
+  var LOG_HZ = 10, LOG_MAX = 1800;
+  var logBuf = [], logRec = true, logAcc = 0;
+  var logView = { zoom: 1, pan: 1 };      /* fracao do buffer e posicao do fim */
+  var logCur = null, logPins = [];
+
+  var CH = [
+    { k: 'rpm',   l: 'RPM',   u: '',     lo: 0,    hi: 7200, dec: 0, c: '--cyan',    on: true },
+    { k: 'boost', l: 'BOOST', u: ' bar', lo: -0.3, hi: 2.2,  dec: 2, c: '--boost',   on: true },
+    { k: 'iat',   l: 'IAT',   u: ' °C',  lo: 0,    hi: 110,  dec: 0, c: '--acc',     on: true },
+    { k: 'ect',   l: 'ECT',   u: ' °C',  lo: 60,   hi: 135,  dec: 0, c: '--silver-2',on: true },
+    { k: 'afr',   l: 'AFR',   u: ':1',   lo: 9,    hi: 18,   dec: 1, c: '--silver-4',on: false },
+    { k: 'duty',  l: 'DUTY',  u: ' %',   lo: 0,    hi: 125,  dec: 0, c: '--acc-2',   on: false },
+    { k: 'tpsSm', l: 'TPS',   u: ' %',   lo: 0,    hi: 100,  dec: 0, c: '--ink-4',   on: false }
+  ];
+
+  function logPush(s, dt) {
+    if (!logRec) return;
+    logAcc += dt;
+    if (logAcc < 1 / LOG_HZ) return;
+    logAcc = 0;
+    logBuf.push({
+      t: s.t, rpm: s.rpm, boost: s.boost, iat: s.iat, ect: s.ect,
+      afr: s.afr, duty: s.duty, tpsSm: s.tpsSm, cut: s.cut, knk: s.knock > 0.45
+    });
+    if (logBuf.length > LOG_MAX) logBuf.shift();
+  }
+
+  /* a janela visivel, em indices */
+  function logWin() {
+    var n = logBuf.length;
+    if (!n) return { a: 0, b: 0, n: 0 };
+    var len = Math.max(12, Math.round(n * logView.zoom));
+    var end = Math.round(len + (n - len) * logView.pan);
+    return { a: Math.max(0, end - len), b: Math.min(n, end), n: n };
+  }
+
+  function drawLog() {
+    var f = surf('ckLog', 0.34, 150, 260);
+    if (!f) return;
+    var w = logWin();
+    var act = CH.filter(function (c) { return c.on; });
+    var sig = [logBuf.length, w.a, w.b, act.length, logCur, logPins.join(','), logRec ? 1 : 0].join('|');
+    if (!fresh(f, sig)) return;
+    var ctx = f.ctx, W = f.w, H = f.h;
+    var padL = 8, padR = 8, padT = 8, padB = 16;
+    var pw = W - padL - padR, ph = H - padT - padB;
+    var m = w.b - w.a;
+
+    ctx.strokeStyle = css('--chart-grid', '#161c27'); ctx.lineWidth = 1;
+    for (var g = 0; g <= 4; g++) {
+      var y = padT + ph * g / 4;
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL + pw, y); ctx.stroke();
+    }
+    if (m < 2) {
+      ctx.fillStyle = css('--ink-4', '#5a6376');
+      ctx.font = '10.5px ui-monospace,monospace'; ctx.textAlign = 'center';
+      ctx.fillText('aguardando amostras…', W / 2, H / 2);
+      return;
+    }
+    function px(i) { return padL + pw * (i - w.a) / Math.max(m - 1, 1); }
+    function py(v, c) { return padT + ph * (1 - U.clamp((v - c.lo) / (c.hi - c.lo), 0, 1)); }
+
+    /* faixas de evento: corte e detonacao marcam o fundo, nao a linha */
+    for (var i = w.a; i < w.b; i++) {
+      var d = logBuf[i];
+      if (!d.cut && !d.knk) continue;
+      ctx.fillStyle = d.cut ? 'rgba(255,59,48,.16)' : 'rgba(255,176,32,.13)';
+      ctx.fillRect(px(i) - 1, padT, Math.max(2, pw / m + 1), ph);
+    }
+
+    act.forEach(function (c) {
+      ctx.strokeStyle = css(c.c, '#7b8699');
+      ctx.lineWidth = 1.5; ctx.lineJoin = 'round'; ctx.beginPath();
+      for (var i = w.a; i < w.b; i++) {
+        var x = px(i), y = py(logBuf[i][c.k], c);
+        i === w.a ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    });
+
+    /* marcadores A e B, depois o cursor por cima */
+    logPins.forEach(function (idx, n) {
+      if (idx < w.a || idx >= w.b) return;
+      var x = px(idx);
+      ctx.strokeStyle = css('--ink-3', '#7b8699'); ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + ph); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = css('--ink-3', '#7b8699');
+      ctx.font = '600 9.5px ui-monospace,monospace'; ctx.textAlign = 'center';
+      ctx.fillText(n ? 'B' : 'A', x, padT + ph + 11);
+    });
+    if (logCur !== null && logCur >= w.a && logCur < w.b) {
+      var xc = px(logCur);
+      ctx.strokeStyle = css('--acc', '#12b6ff'); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xc, padT); ctx.lineTo(xc, padT + ph); ctx.stroke();
+      act.forEach(function (c) {
+        ctx.fillStyle = css(c.c, '#7b8699');
+        ctx.beginPath(); ctx.arc(xc, py(logBuf[logCur][c.k], c), 2.6, 0, 6.284); ctx.fill();
+      });
+    }
+
+    /* eixo de tempo: so os extremos, o meio o cursor informa */
+    ctx.fillStyle = css('--ink-4', '#5a6376');
+    ctx.font = '9.5px ui-monospace,monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('-' + U.br((logBuf[w.b - 1].t - logBuf[w.a].t), 0) + ' s', padL, H - 4);
+    ctx.textAlign = 'right';
+    ctx.fillText(logRec ? 'agora' : 'pausado', padL + pw, H - 4);
+  }
+
+  function logReadout() {
+    var e = $('#ckLogRead');
+    if (!e) return;
+    if (logCur === null || !logBuf[logCur]) {
+      e.innerHTML = logPins.length
+        ? 'marcadores em A' + (logPins.length > 1 ? ' e B' : '') + ' · clique de novo para trocar · passe o ponteiro para ler'
+        : 'passe o ponteiro sobre o traço para ler o instante · clique para marcar A e B';
+      return;
+    }
+    var d = logBuf[logCur];
+    var partes = CH.filter(function (c) { return c.on; }).map(function (c) {
+      return '<span style="color:' + css(c.c, '#7b8699') + '">' + c.l + '</span> ' +
+        U.br(d[c.k], c.dec) + c.u;
+    });
+    var h = partes.join(' · ');
+    if (logPins.length === 2) {
+      var A = logBuf[logPins[0]], B = logBuf[logPins[1]];
+      if (A && B) {
+        h += '<br>A→B em ' + U.br(Math.abs(B.t - A.t), 1) + ' s: ' +
+          CH.filter(function (c) { return c.on; }).map(function (c) {
+            var dv = B[c.k] - A[c.k];
+            return c.l + ' ' + (dv >= 0 ? '+' : '') + U.br(dv, c.dec) + c.u;
+          }).join(' · ');
+      }
+    } else if (d.cut) {
+      h += '<br><span class="e">corte de overboost neste instante</span>';
+    }
+    e.innerHTML = h;
+  }
+
+  function buildLog() {
+    var host = $('#ckLogChans');
+    if (!host || host.childNodes.length) return;
+    host.innerHTML = CH.map(function (c, i) {
+      return '<button class="log-ch' + (c.on ? ' on' : '') + '" data-ch="' + i + '"' +
+        ' style="--c:' + css(c.c, '#7b8699') + '"><i></i>' + c.l + '</button>';
+    }).join('');
+    host.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-ch]');
+      if (!b) return;
+      var c = CH[+b.dataset.ch];
+      /* nunca deixar a tela vazia: o ultimo canal aceso nao apaga */
+      if (c.on && CH.filter(function (x) { return x.on; }).length === 1) return;
+      c.on = !c.on;
+      b.classList.toggle('on', c.on);
+      if (A) A.play('tick');
+      logReadout();
+    });
+  }
+
+  function wireLog() {
+    var cv = $('#ckLog');
+    if (cv && !cv.__w) {
+      cv.__w = 1;
+      var pick = function (ev) {
+        var r = cv.getBoundingClientRect();
+        var w = logWin();
+        if (w.b - w.a < 2) return null;
+        var k = U.clamp((ev.clientX - r.left - 8) / Math.max(r.width - 16, 1), 0, 1);
+        return w.a + Math.round(k * (w.b - w.a - 1));
+      };
+      cv.addEventListener('pointermove', function (ev) {
+        var i = pick(ev);
+        if (i === logCur) return;
+        logCur = i; logReadout();
+      });
+      cv.addEventListener('pointerleave', function () { logCur = null; logReadout(); });
+      cv.addEventListener('click', function (ev) {
+        var i = pick(ev);
+        if (i === null) return;
+        /* dois marcadores bastam: o terceiro clique recomeca do A */
+        if (logPins.length >= 2) logPins = [];
+        logPins.push(i);
+        logPins.sort(function (a, b) { return a - b; });
+        if (A) A.play('tick');
+        logReadout();
+      });
+    }
+    var rec = $('#ckLogRec');
+    if (rec && !rec.__w) {
+      rec.__w = 1;
+      rec.addEventListener('click', function () {
+        logRec = !logRec;
+        rec.setAttribute('aria-pressed', String(logRec));
+        rec.textContent = logRec ? '⏸ PAUSAR' : '⏵ GRAVAR';
+        var s = $('#ckLogS');
+        if (s) s.textContent = logRec ? 'gravando' : 'pausado';
+        if (A) A.play('relay');
+      });
+    }
+    var z = $('#ckLogZoom');
+    if (z && !z.__w) {
+      z.__w = 1;
+      z.addEventListener('input', function () { logView.zoom = +z.value / 100; });
+    }
+    var pn = $('#ckLogPan');
+    if (pn && !pn.__w) {
+      pn.__w = 1;
+      pn.addEventListener('input', function () { logView.pan = +pn.value / 100; });
+    }
+    var cl = $('#ckLogClear');
+    if (cl && !cl.__w) {
+      cl.__w = 1;
+      cl.addEventListener('click', function () {
+        logBuf = []; logPins = []; logCur = null;
+        if (A) A.play('relay');
+        logReadout();
+      });
+    }
+  }
+
+  /* ============================================================
+     Controle de pressao
+     ============================================================ */
+  var TB = [
+    { id: 'ckSol',     k: 'solenoid',    dec: 0, u: ' %' },
+    { id: 'ckOver',    k: 'overboost',   dec: 2, u: ' bar' },
+    { id: 'ckLcRpm',   k: 'launchRpm',   dec: 0, u: '' },
+    { id: 'ckLcBoost', k: 'launchBoost', dec: 2, u: ' bar' }
+  ];
+
+  function buildTurbo() {
+    var host = $('#ckGb');
+    if (!host || host.childNodes.length) return;
+    var c = SIM.ctl();
+    host.innerHTML = c.boostByGear.map(function (f, i) {
+      return '<div class="gb" id="gb' + (i + 1) + '">' +
+        '<input type="range" data-gb="' + (i + 1) + '" min="0" max="120" step="5" value="' +
+        Math.round(f * 100) + '" aria-label="Fator de pressão da marcha ' + (i + 1) + '">' +
+        '<span class="gb-n">' + (i + 1) + '</span>' +
+        '<span class="gb-v" id="gbv' + (i + 1) + '">' + U.br(f * 100, 0) + '%</span></div>';
+    }).join('');
+    host.addEventListener('input', function (ev) {
+      var el = ev.target.closest('[data-gb]');
+      if (!el) return;
+      var g = +el.dataset.gb;
+      SIM.setGearBoost(g, +el.value / 100);
+      var v = document.getElementById('gbv' + g);
+      if (v) v.textContent = U.br(+el.value, 0) + '%';
+      turboSig = '';
+    });
+  }
+
+  function wireTurbo() {
+    TB.forEach(function (b) {
+      var el = document.getElementById(b.id);
+      if (!el || el.__w) return;
+      el.__w = 1;
+      var paint = function () {
+        var out = document.getElementById(b.id + 'V');
+        if (out) out.textContent = U.br(parseFloat(el.value), b.dec) + b.u;
+      };
+      el.addEventListener('input', function () {
+        SIM.set(b.k, parseFloat(el.value));
+        paint(); turboSig = '';
+      });
+      el.addEventListener('change', function () { if (A) A.play('tick'); });
+      el.value = SIM.ctl()[b.k];
+      paint();
+    });
+  }
+
+  var turboSig = '';
+  function paintTurbo(s) {
+    var c = SIM.ctl();
+    var sig = [U.br(s.spool * 100, 0), U.br(s.boost, 2), c.gear, s.cut ? 1 : 0, s.cutCount].join('|');
+    if (sig === turboSig) return;
+    turboSig = sig;
+    var hs = $('#ckTbS');
+    if (hs) {
+      hs.textContent = 'spool ' + U.br(s.spool * 100, 0) + ' %';
+      hs.classList.toggle('warn', s.cut);
+    }
+    /* a marcha corrente fica marcada na fileira: e ela que decide o
+       teto agora, as outras cinco sao intencao para depois */
+    for (var g = 1; g <= 6; g++) {
+      var el = document.getElementById('gb' + g);
+      if (el) el.classList.toggle('live', g === c.gear);
+    }
+    var r = $('#ckTbRead');
+    if (r) {
+      r.innerHTML =
+        'teto desta marcha <b>' + U.br(s.boostCmd, 2) + ' bar</b> · entregue ' +
+        U.br(s.boost, 2) + ' bar<br>' +
+        (s.cut ? '<span class="e">CORTE — pressão acima de ' + U.br(c.overboost, 2) + ' bar</span>'
+               : s.cutCount ? '<span class="w">' + s.cutCount + ' corte(s) de overboost nesta sessão</span>'
+                            : s.spool < 0.15 ? 'turbina fora da faixa — precisa de giro'
+                                             : 'dentro do teto');
+    }
+  }
+
+  /* ============================================================
      Blocos de DOM: bicos, sensores, LEDs
      ============================================================ */
   function buildOnce() {
@@ -272,6 +586,7 @@
       ['g','g','g','g','y','y','y','r','r','r'].forEach(function (c) {
         var d = document.createElement('span'); d.className = 'led ' + c; strip.appendChild(d);
       });
+      wireLeds(strip);
     }
     var pre = $('#ckBoostPresets');
     if (pre && !pre.childNodes.length) {
@@ -297,7 +612,45 @@
       var bs = $('#ckBusS');
       if (bs) bs.textContent = ATC.Sim.sensors().length + ' sensores';
     }
+    buildLog();
+    buildTurbo();
     built = true;
+  }
+
+  /* ============================================================
+     A regua de LEDs sob o dedo
+     ------------------------------------------------------------
+     Ensaiar a barra com a mao e o gesto de quem confere se a coisa
+     funciona antes de usar. Aqui o ensaio nao mexe em nada: acende
+     o LED sob o ponteiro e os anteriores, diz a que rotacao aquele
+     LED responde, e some quando o ponteiro sai.
+     ============================================================ */
+  function ledRpm(i, n) {
+    var lim = ATC.Sim.limits;
+    return 2600 + (lim.cut - 2600) * ((i + 1) / n);
+  }
+  function wireLeds(strip) {
+    if (strip.__w) return;
+    strip.__w = 1;
+    var tip = $('#ckLedTip');
+    var leds = Array.prototype.slice.call(strip.children);
+    strip.addEventListener('pointermove', function (ev) {
+      var r = strip.getBoundingClientRect();
+      var k = U.clamp((ev.clientX - r.left) / Math.max(r.width, 1), 0, 0.9999);
+      var idx = Math.floor(k * leds.length);
+      if (strip.__idx === idx) return;
+      strip.__idx = idx;
+      strip.dataset.probe = '1';
+      leds.forEach(function (l, i) { l.classList.toggle('probe', i <= idx); });
+      if (tip) tip.innerHTML = 'LED ' + (idx + 1) + ' · acende em <b>' +
+        U.br(ledRpm(idx, leds.length), 0) + ' rpm</b>';
+    });
+    strip.addEventListener('pointerleave', function () {
+      strip.__idx = -1;
+      delete strip.dataset.probe;
+      leds.forEach(function (l) { l.classList.remove('probe'); });
+      if (tip) tip.textContent = '';
+    });
   }
 
   var lastLed = -1;
@@ -425,6 +778,7 @@
     traceAfr.push({ a: s.afr, b: 14.7 });
     if (traceFuel.length > TRACE_N) traceFuel.shift();
     if (traceAfr.length > TRACE_N) traceAfr.shift();
+    logPush(s, dt);
 
     if (!visible('tab-cockpit')) return;
     buildOnce();
@@ -433,6 +787,8 @@
     drawTrace('ckFuel', 0.42, 92, 150, traceFuel, { lo: 2.4, hi: 5.4, dec: 1, color: '#12b6ff', showB: true });
     drawTrace('ckAfrTrace', 0.30, 62, 104, traceAfr, { lo: 10, hi: 17, dec: 1, color: '#3ff0e0', fill: 'rgba(63,240,224,.20)', showB: true });
     paintDom(s);
+    paintTurbo(s);
+    drawLog();
 
     var thr = $('#ckThrFill');
     if (thr) thr.style.transform = 'scaleX(' + (s.tpsSm / 100).toFixed(3) + ')';
@@ -522,6 +878,8 @@
     }
 
     wireBench();
+    wireTurbo();
+    wireLog();
 
     /* estado inicial dos botoes */
     var d = document.querySelector('[data-boost="0.8"]');
@@ -677,6 +1035,7 @@
         '  turbo       estado do controle de pressao',
         '  injectors   ciclo de trabalho por bico',
         '  launch      arma ou desarma o launch control',
+        '  log         estatistica da janela do data logger',
         '  bancada     calibracao atual dos nove ajustes',
         '  mistura <trim>      enriquece (+) ou empobrece (-) em %',
         '  admissao <temp>     temperatura do ar ambiente em °C',
@@ -732,11 +1091,34 @@
     },
     rpm: function (s) { return U.br(s.rpm, 0) + ' rpm  ·  corte em ' + ATC.Sim.limits.cut; },
     turbo: function (s) {
-      return ['Boost alvo      ' + U.br(SIM.ctl().boostTarget, 2) + ' bar',
+      var c = SIM.ctl();
+      return ['Boost alvo      ' + U.br(c.boostTarget, 2) + ' bar',
         'Boost atual     ' + U.br(s.boost, 2) + ' bar',
-        'Wastegate duty  ' + U.br(SIM.ctl().wgDuty, 0) + ' %',
-        'Marcha          ' + SIM.ctl().gear,
+        'Teto da marcha  ' + U.br(s.boostCmd, 2) + ' bar   (marcha ' + c.gear + ')',
+        'Wastegate duty  ' + U.br(c.wgDuty, 0) + ' %',
+        'Solenoide       ' + U.br(c.solenoid, 0) + ' %',
+        'Spool           ' + U.br(s.spool * 100, 0) + ' %',
+        'Corte em        ' + U.br(c.overboost, 2) + ' bar   ' +
+          (s.cut ? '<e>CORTANDO</e>' : s.cutCount ? '<w>' + s.cutCount + ' corte(s)</w>' : '<ok>livre</ok>'),
+        'Launch          ' + U.br(c.launchRpm, 0) + ' rpm a ' + U.br(c.launchBoost, 2) + ' bar',
+        'Por marcha      ' + c.boostByGear.map(function (f) { return U.br(f * 100, 0) + '%'; }).join('  '),
         'IAT             ' + U.br(s.iat, 0) + ' °C'].join('\n');
+    },
+    log: function () {
+      var w = logWin();
+      if (w.b - w.a < 2) return 'logger sem amostras suficientes ainda';
+      var out = ['gravacao ' + (logRec ? '<ok>ATIVA</ok>' : '<w>PAUSADA</w>') +
+        '  ·  ' + logBuf.length + ' amostras  ·  janela ' + (w.b - w.a) + ''];
+      var act = CH.filter(function (c) { return c.on; });
+      out.push('canais: ' + act.map(function (c) { return c.l; }).join(', '));
+      act.forEach(function (c) {
+        var v = [];
+        for (var i = w.a; i < w.b; i++) v.push(logBuf[i][c.k]);
+        out.push(pad(c.l, 6) + ' min ' + pad(U.br(U.min(v), c.dec), 7) +
+          '  med ' + pad(U.br(U.mean(v), c.dec), 7) +
+          '  max ' + pad(U.br(U.max(v), c.dec), 7) + ' ' + c.u);
+      });
+      return out.join('\n');
     },
     injectors: function (s) {
       return s.inj.map(function (v, i) {
@@ -859,7 +1241,7 @@
   };
   CK.unmount = function () { if (stop) { stop(); stop = null; } };
   CK.invalidate = function () {
-    ['ckTach', 'ckBoost', 'ckFuel', 'ckAfrTrace'].forEach(function (id) {
+    ['ckTach', 'ckBoost', 'ckFuel', 'ckAfrTrace', 'ckLog'].forEach(function (id) {
       var e = document.getElementById(id);
       if (e) { e.__sig = null; e.__ctx = null; e.width = 0; }
     });

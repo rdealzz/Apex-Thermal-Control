@@ -306,12 +306,23 @@ header.top{
 .icon-btn svg{width:16px;height:16px;display:block}
 .icon-btn.on{background:var(--acc-soft);border-color:var(--acc);color:var(--acc)}
 
+/* volume: so aparece com o som ligado, e some quando o cabecalho
+   fica apertado — e conveniencia, nao controle essencial */
+/* o seletor precisa do input junto: a regra generica de range
+   logo abaixo tem especificidade maior que a classe sozinha */
+input[type=range].snd-vol{
+  width:56px;height:34px;margin:0;padding:0;accent-color:var(--acc);
+  background:transparent;cursor:pointer;flex:none;
+}
+@media (max-width:1180px){.snd-vol{display:none!important}}
+
 .kbd-btn{
   appearance:none;display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 10px 0 12px;
   border-radius:10px;border:1px solid var(--hair);background:var(--surface);cursor:pointer;
   color:var(--ink-3);font:inherit;font-size:12.5px;box-shadow:var(--sh-1);
   transform:translate3d(0,calc(var(--press,0) * 2px),0);will-change:transform;
 }
+.kbd-btn{flex:none;white-space:nowrap}
 .kbd-btn:hover{color:var(--ink-2);border-color:var(--hair-strong)}
 .kbd-btn kbd{background:var(--surface-3);border-color:var(--hair);color:var(--ink-3)}
 @media (max-width:900px){.kbd-btn .kbd-lab{display:none}}
@@ -327,6 +338,9 @@ header.top{
   box-shadow:var(--sh-1);
   transform:translate3d(0,calc(var(--press,0) * 2px),0) scale(var(--sc,1));
   will-change:transform;transition:color .2s,border-color .2s;
+  /* nunca encolher: com overflow escondido, encolher nao aperta o
+     texto, corta ele pela metade */
+  flex:none;white-space:nowrap;
 }
 .speed-btn .led{
   width:6px;height:6px;border-radius:50%;background:var(--ink-4);flex:0 0 auto;

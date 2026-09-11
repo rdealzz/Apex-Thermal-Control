@@ -40,7 +40,10 @@
     /* turbo e transmissao */
     boostTarget: 0.8,      // bar
     wgDuty: 45,            // % de ciclo da valvula de alivio
+    solenoid: 60,          // % do controlador eletronico de pressao
     launchRpm: 4200,       // rpm de saida
+    launchBoost: 0.6,      // bar segurados na saida
+    overboost: 1.9,        // bar que dispara o corte de seguranca
     gear: 3,
     boostByGear: [0.5, 0.7, 0.9, 1.0, 1.0, 1.0],   // fator por marcha
     tps: 0,                // 0..100, comandado pelo pedal virtual
@@ -76,6 +79,7 @@
     duty: 8, inj: [8, 8, 8, 8],
     power: 0, torque: 0,
     fan: false, thermoOpen: 0,
+    spool: 0, boostCmd: 0, cut: false, cutCount: 0,
     limiter: false, launch: false, popcorn: 0,
     phase: 'marcha lenta', manual: false,
     t: 0
@@ -212,14 +216,34 @@
 
     /* --- pressao: o turbo tem atraso e depende de rotacao e pedal --- */
     var gearF = ctl.boostByGear[U.clamp(ctl.gear, 1, 6) - 1];
-    var spool = U.clamp((st.rpm - 1900) / 2200, 0, 1);
+    st.spool = U.clamp((st.rpm - 1900) / 2200, 0, 1);
     var wg = U.clamp(ctl.wgDuty / 100, 0, 1);
-    var reach = ctl.boostTarget * gearF * (0.55 + 0.45 * wg) * spool * loadFrac * ve;
+    /* dois caminhos para a mesma valvula: a mola da wastegate poe o
+       piso e o solenoide do controlador segura a haste fechada mais
+       tempo. Um sozinho nao chega no alvo; os dois juntos, sim.    */
+    var sol = U.clamp(ctl.solenoid / 100, 0, 1);
+    var alvo = ctl.launchActive ? Math.min(ctl.launchBoost, ctl.boostTarget) : ctl.boostTarget;
+    var reach = alvo * gearF * (0.42 + 0.33 * wg + 0.25 * sol) * st.spool * loadFrac * ve;
+    st.boostCmd = alvo * gearF;
     /* enche rapido, alivia devagar: a valvula abre mais facil do que
        a turbina acelera                                            */
     var k = reach > st.boost ? 2.6 : 4.2;
     st.boost += (reach - st.boost) * Math.min(1, dt * k);
     st.boost = Math.max(st.boost, -0.15 * (1 - loadFrac));   // vacuo em desaceleracao
+    /* corte de seguranca: pressao acima do teto tira a injecao ate a
+       coluna baixar. E o unico jeito de um controlador de verdade
+       proteger o motor de uma haste emperrada                     */
+    if (st.boost > ctl.overboost) {
+      if (!st.cut) st.cutCount++;
+      st.cut = true;
+    } else if (st.boost < ctl.overboost - 0.12) {
+      st.cut = false;
+    }
+    if (st.cut) {
+      st.boost -= dt * 2.2;
+      st.rpmV -= Math.abs(st.rpmV) * 0.25 + 60 * dt;
+      st.popcorn = 1;
+    }
     /* o coletor pulsa: cada cilindro que admite puxa a coluna de ar */
     st.map = (P_ATM + st.boost) * 100 + wave(7, st.t) * (0.7 + 1.5 * loadFrac);
 
@@ -297,6 +321,7 @@
     } else {
       st.torque = 150 * (1 + Math.max(st.boost, 0)) * loadFrac * airPenalty * ve;
     }
+    if (st.cut) st.torque *= 0.12;
     st.power = st.torque * st.rpm / 7121;
     return st;
   };
@@ -332,7 +357,13 @@
     if (!ctl.auto) { ctl.tps = 0; st.manual = false; }
     return ctl.auto;
   };
-  SIM.resetKnock = function () { st.knockCount = 0; };
+  SIM.resetKnock = function () { st.knockCount = 0; st.cutCount = 0; };
+  /* o fator de cada marcha e o unico controle que e uma lista */
+  SIM.setGearBoost = function (g, f) {
+    g = U.clamp(Math.round(g), 1, 6);
+    ctl.boostByGear[g - 1] = U.clamp(f, 0, 1.2);
+    return ctl.boostByGear;
+  };
 
   /* lista de sensores para as telas que mostram o barramento inteiro */
   SIM.sensors = function () {
@@ -341,6 +372,7 @@
       { id: 'tps',  l: 'TPS',        v: st.tpsSm,     u: '%',     d: 0, max: 100 },
       { id: 'map',  l: 'MAP',        v: st.map,       u: 'kPa',   d: 0, max: 300 },
       { id: 'boost',l: 'BOOST',      v: st.boost,     u: 'bar',   d: 2, max: 2.2, warn: st.boost > 1.7 },
+      { id: 'spool',l: 'SPOOL',      v: st.spool * 100, u: '%',   d: 0, max: 100 },
       { id: 'maf',  l: 'MAF',        v: st.map * st.rpm / 26000, u: 'g/s', d: 1, max: 220 },
       { id: 'amb',  l: 'AMBIENT',    v: ctl.ambT,     u: '°C',    d: 0, max: 55 },
       { id: 'iat',  l: 'IAT',        v: st.iat,       u: '°C',    d: 0, max: 110, warn: st.iat > 65 },

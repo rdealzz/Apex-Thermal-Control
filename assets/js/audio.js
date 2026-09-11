@@ -13,7 +13,18 @@
 
   var A = {}, ctx = null, master = null, on = false;
 
+  /* O teto e baixo de proposito. O que se chama aqui de volume e a
+     fracao desse teto, nao do sistema: mesmo no maximo, isto e som
+     de interface — ninguem deve precisar abaixar o computador por
+     causa de um clique. */
+  var CEIL = 0.30;
+  var vol = 0.37;
+
   try { on = localStorage.getItem('apex.sound') === '1'; } catch (e) {}
+  try {
+    var sv = parseFloat(localStorage.getItem('apex.vol'));
+    if (isFinite(sv)) vol = Math.max(0, Math.min(1, sv));
+  } catch (e) {}
 
   function ready() {
     if (!on) return null;
@@ -22,7 +33,7 @@
       if (!C) return null;
       ctx = new C();
       master = ctx.createGain();
-      master.gain.value = 0.11;          /* discreto por principio */
+      master.gain.value = CEIL * vol;    /* discreto por principio */
       master.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
@@ -105,6 +116,21 @@
     return on;
   };
   A.toggle = function () { return A.set(!on); };
+
+  A.volume = function (v) {
+    if (v === undefined) return vol;
+    vol = Math.max(0, Math.min(1, v));
+    try { localStorage.setItem('apex.vol', String(vol)); } catch (e) {}
+    /* a rampa curta evita o estalo que um salto de ganho produz
+       quando alguma voz ainda esta soando */
+    if (master && ctx) {
+      try {
+        master.gain.cancelScheduledValues(ctx.currentTime);
+        master.gain.setTargetAtTime(CEIL * vol, ctx.currentTime, 0.015);
+      } catch (e) { master.gain.value = CEIL * vol; }
+    }
+    return vol;
+  };
 
   ATC.Audio = A;
 })(window.ATC = window.ATC || {});

@@ -169,6 +169,28 @@
 .shift-strip .led.on.r{background:var(--crit);box-shadow:0 0 14px var(--crit);border-color:var(--crit)}
 .shift-strip.flash .led{background:var(--crit);box-shadow:0 0 16px var(--crit);border-color:var(--crit)}
 
+/* passar o dedo pela regua acende o LED sob o ponteiro e os
+   anteriores, como quem testa a barra com a mao antes de ligar o
+   carro. E so um ensaio: nao mexe na rotacao nem no que esta aceso
+   de verdade, e sai assim que o ponteiro sai. */
+.shift-strip[data-probe] .led{opacity:.45}
+.shift-strip[data-probe] .led.probe{
+  opacity:1;transform:scaleY(1.9);
+  background:var(--silver-1);border-color:var(--silver-1);
+  box-shadow:0 0 10px var(--silver-2);
+}
+.shift-strip[data-probe] .led.probe.g{background:var(--ok);border-color:var(--ok);box-shadow:0 0 12px var(--ok)}
+.shift-strip[data-probe] .led.probe.y{background:var(--warn);border-color:var(--warn);box-shadow:0 0 12px var(--warn)}
+.shift-strip[data-probe] .led.probe.r{background:var(--crit);border-color:var(--crit);box-shadow:0 0 14px var(--crit)}
+.shift-strip .led{transition:background .09s linear, box-shadow .09s linear, opacity .12s linear, transform .12s ease}
+
+.led-tip{
+  display:block;text-align:center;font-family:var(--mono);
+  font-size:9.5px;letter-spacing:.14em;color:var(--ink-4);
+  height:12px;margin:-9px 0 8px;
+}
+.led-tip b{color:var(--acc);font-weight:600}
+
 /* leituras digitais embaixo do cluster */
 .hud-strip{
   display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
@@ -349,7 +371,13 @@
     hsl(calc(215 - var(--t,0) * 215), 78%, calc(28% + var(--t,0) * 26%));
   transition:transform .12s ease,border-color .12s ease;
 }
-.tune-grid td.tc:hover{transform:scale(1.06);border-color:rgba(255,255,255,.5)}
+/* a celula sob o ponteiro cresce e sobe: a tabela e densa, e sem
+   sair do plano das vizinhas o aumento passa despercebido */
+.tune-grid td.tc:hover{
+  transform:scale(1.16);border-color:rgba(255,255,255,.72);
+  box-shadow:0 6px 16px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.22);
+  position:relative;z-index:3;
+}
 .tune-grid td.tc.on{
   border-color:#fff;
   box-shadow:0 0 0 1px rgba(255,255,255,.5), 0 0 14px rgba(255,255,255,.28);
@@ -393,11 +421,14 @@
 .ck-fuel{grid-column:span 5}
 .ck-inj{grid-column:span 3}
 .ck-sens{grid-column:span 4}
+.ck-turbo{grid-column:span 4}
+.ck-log{grid-column:span 8}
 .ck-cal{grid-column:span 12}
 @media (max-width:1180px){
   .ck-tach{grid-column:span 7}.ck-boost{grid-column:span 5}
   .ck-afr{grid-column:span 6}.ck-fuel{grid-column:span 6}
   .ck-inj{grid-column:span 5}.ck-sens{grid-column:span 7}
+  .ck-turbo{grid-column:span 5}.ck-log{grid-column:span 7}
 }
 @media (max-width:760px){.ck-grid>*{grid-column:span 12!important}}
 
@@ -511,6 +542,39 @@
   color:var(--ink-4);text-transform:uppercase;
 }
 .knob.wide{padding-inline:12px;letter-spacing:.12em}
+
+/* ---------- pressao por marcha ---------- */
+.gear-boost{margin-top:14px;padding-top:11px;border-top:1px solid var(--hair)}
+.gb-row{display:flex;gap:6px;margin-top:10px}
+.gb{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:5px;min-width:0}
+.gb input[type=range]{
+  /* o cursor vertical e o que faz a fileira parecer um banco de
+     faders, e nao seis campos de formulario empilhados */
+  writing-mode:vertical-lr;direction:rtl;
+  width:16px;height:64px;accent-color:var(--boost);cursor:pointer;
+}
+.gb-n{font-family:var(--mono);font-size:10px;color:var(--ink-4)}
+.gb-v{font-family:var(--mono);font-size:9.5px;color:var(--ink-3)}
+.gb.live .gb-n{color:var(--boost)}
+
+/* ---------- data logger ---------- */
+.log-chans{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:10px}
+.log-ch{
+  appearance:none;cursor:pointer;font:inherit;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;
+  padding:4px 8px;border-radius:6px;
+  border:1px solid var(--hair-strong);background:var(--surface-2);
+  color:var(--ink-4);display:inline-flex;align-items:center;gap:6px;
+  transition:color .15s,border-color .15s,opacity .15s;opacity:.5;
+}
+.log-ch i{width:9px;height:3px;border-radius:2px;background:currentColor;flex:none}
+.log-ch.on{opacity:1;color:var(--ink);border-color:var(--hair-strong)}
+.log-ch.on i{background:var(--c)}
+.log-ctl{display:flex;align-items:center;gap:10px;margin-top:11px;flex-wrap:wrap}
+.log-sl{display:flex;align-items:center;gap:7px;flex:1 1 130px;min-width:110px}
+.log-sl span{font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4)}
+.log-sl input[type=range]{flex:1 1 auto;min-width:52px;accent-color:var(--acc)}
+.ck-log .ck-canvas{cursor:crosshair}
 
 /* ---------- mistura ---------- */
 .afr-scale{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;letter-spacing:.14em;color:var(--ink-4);margin-bottom:4px}
@@ -627,6 +691,7 @@
   background-position:calc(100% - 14px) 15px,calc(100% - 9px) 15px;
   background-size:5px 5px,5px 5px;background-repeat:no-repeat;
 }
+.skin-pick{max-width:132px;min-width:0;flex:0 1 auto}
 .skin-pick:hover{border-color:var(--acc);color:var(--ink)}
 html:not([data-mode="speed"]) .skin-pick{display:none}
 @media (max-width:900px){.skin-pick{display:none!important}}

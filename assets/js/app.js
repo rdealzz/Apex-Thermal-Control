@@ -1804,16 +1804,31 @@
     });
 
     /* som da interface: comeca desligado e fica lembrado */
-    var snd = $('#btnSound');
+    var snd = $('#btnSound'), vol = $('#sndVol');
     if (snd && ATC.Audio) {
+      /* o cursor de volume so existe enquanto o som existe: um
+         controle que nao controla nada e ruido visual */
       var paint = function () {
         var on = ATC.Audio.enabled();
         snd.setAttribute('aria-pressed', String(on));
         snd.classList.toggle('on', on);
         snd.title = 'Som da interface — ' + (on ? 'ligado' : 'desligado');
+        if (vol) {
+          vol.hidden = !on;
+          vol.title = 'Volume da interface — ' + Math.round(ATC.Audio.volume() * 100) + ' %';
+        }
       };
+      if (vol) vol.value = Math.round(ATC.Audio.volume() * 100);
       paint();
       snd.addEventListener('click', function () { ATC.Audio.toggle(); paint(); });
+      if (vol) {
+        vol.addEventListener('input', function () {
+          ATC.Audio.volume(+vol.value / 100);
+          vol.title = 'Volume da interface — ' + vol.value + ' %';
+        });
+        /* um toque ao soltar: o volume so se julga ouvindo */
+        vol.addEventListener('change', function () { ATC.Audio.play('tick'); });
+      }
     }
 
     /* paleta de comandos */

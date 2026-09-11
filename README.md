@@ -56,7 +56,7 @@ abre três telas exclusivas:
 | Tela | O que mostra |
 | --- | --- |
 | **Cockpit** | A bancada inteira: conta-giros com pedal, manômetro de turbo com presets, mistura, pressão de combustível, bicos, o barramento CAN e a **calibração de bancada** — todos vivos e ligados entre si |
-| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`, `bancada`, `mistura`, `admissao`, `temperatura`, `auto`) |
+| **Terminal** | Console da central, com comandos (`status`, `scan`, `diagnostic`, `boost`, `afr`, `turbo`, `injectors`, `launch`, `log`, `bancada`, `mistura`, `admissao`, `temperatura`, `auto`) |
 | **Cluster** | Conta-giros, temperatura e velocidade em ponteiros, mais quatro manômetros — pressão de óleo, de combustível, de turbo e AFR — com a telemetria da coleta rodando |
 | **ECU** | Oito telas de central eletrônica: Engine, Turbo, Injectors, **Tune**, Logger, Maps, Diagnostics, Telemetry |
 | **Dyno** | Passada de dinamômetro com os mapas da aba Tune, e o veredito de quanto tempo o radiador real seguraria aquilo |
@@ -99,6 +99,35 @@ A temperatura da água não precisa de ruído nenhum: com termostato e ventoinha
 histerese, ela oscila sozinha — que é exatamente o que ela faz num carro parado no
 trânsito.
 
+### Controle de pressão
+
+A wastegate põe o piso e o solenoide do controlador segura a haste fechada mais tempo —
+nenhum dos dois sozinho chega no alvo. A fileira de seis faders define o teto de cada
+marcha (a corrente fica marcada), e o launch control tem rotação e pressão próprias.
+
+O teto de segurança é o que fecha a história: passar do **corte de overboost** tira a
+injeção até a coluna baixar, com histerese de 0,12 bar para não ficar picotando na
+fronteira. O torque cai a 12 %, a rotação despenca e o logger marca a faixa do corte no
+fundo do gráfico. É o único jeito de um controlador de verdade proteger o motor de uma
+haste emperrada, e aqui ele se comporta igual.
+
+### Data logger
+
+Anel de amostras a 10 Hz com três minutos de memória. Sete canais — RPM, boost, IAT, ECT,
+AFR, duty e TPS — ligáveis um a um, cada um com escala própria e desenhado normalizado:
+rotação em milhares e pressão em décimos no mesmo eixo esmagaria a segunda.
+
+- **Janela e posição** são dois cursores, não a roda do mouse: numa página que rola, roda
+  do mouse sobre um gráfico é armadilha.
+- **Cursor** — o ponteiro sobre o traço lê o instante inteiro, todos os canais ativos de
+  uma vez, com unidade.
+- **Marcadores A e B** — clique para fixar dois pontos e a leitura vira o delta entre
+  eles, com o tempo decorrido. O terceiro clique recomeça.
+- **Eventos no fundo** — corte de overboost e detonação marcam a faixa de tempo, não a
+  linha: o traço continua legível por cima.
+- `⏸ PAUSAR` congela a gravação sem perder o que já entrou; `log` no terminal devolve
+  mín/médio/máx da janela visível.
+
 ### Calibração de bancada
 
 Nove potenciômetros, três decisões. Cada um escreve direto no mesmo estado que a simulação
@@ -123,6 +152,10 @@ junto.
 Sete temas — Carbono, Titanium, Nismo, Midnight, Neo Tokyo, Factory e Race — trocam só os
 tokens de cor, então todo módulo segue junto, inclusive os canvas, que consultam a paleta
 na hora de desenhar.
+
+O som da interface é sintetizado na hora com WebAudio — nenhum arquivo, nada que atrapalhe
+abrir offline — e tem cursor de volume ao lado do botão, que só aparece com o som ligado.
+O teto é baixo de propósito: mesmo no máximo, isto é som de interface.
 
 ### A bancada de remapeamento
 
