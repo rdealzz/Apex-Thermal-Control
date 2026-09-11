@@ -178,10 +178,14 @@
 
   SP.mount = function () {
     if (ATC.Cockpit) ATC.Cockpit.mount();
+    /* o ponto de operacao ao vivo le o simulador; quem faz ele
+       avancar e o laco do cockpit, entao aqui so se olha */
+    if (!stopLive && M) stopLive = M.onFrame(function (dt) { liveFrame(dt); });
     SP.renderStatic();
   };
   SP.unmount = function () {
     if (ATC.Cockpit) ATC.Cockpit.unmount();
+    if (stopLive) { stopLive(); stopLive = null; }
   };
 
   function tile(l, v, u, cls, frac) {
@@ -200,7 +204,77 @@
      na hora em potencia, torque e nos dois jeitos de estragar tudo.
      Ficcao — mas ficcao com os compromissos certos.
      ============================================================ */
-  var TSEL = { i: 4, j: 4 };
+  /* ------------------------------------------------------------
+     Estado da tela: onde esta o cursor, o que esta selecionado, o
+     que da para desfazer, e por onde o motor andou.
+     ------------------------------------------------------------ */
+  var TSEL = { i: 4, j: 4 };              /* celula ancora */
+  var TBOX = { i0: 4, j0: 4, i1: 4, j1: 4 };  /* bloco selecionado */
+  var drag = null;                        /* arrasto em curso */
+  var clip = null;                        /* area copiada */
+  var undoS = [], redoS = [];             /* pilhas de desfazer */
+  var UNDO_MAX = 40;
+  var deltaView = false;                  /* mostrar diferenca do original */
+  var trace = null, traceOn = true;       /* por onde o motor passou */
+  var liveCell = { i: -1, j: -1 };
+  var stopLive = null;
+
+  function TNaxes() { return { ni: ATC.Tune.rpmAxis.length, nj: ATC.Tune.loadAxis.length }; }
+
+  function traceGrid() {
+    var a = TNaxes();
+    if (trace && trace.length === a.nj && trace[0].length === a.ni) return trace;
+    trace = [];
+    for (var j = 0; j < a.nj; j++) {
+      var r = [];
+      for (var i = 0; i < a.ni; i++) r.push(0);
+      trace.push(r);
+    }
+    return trace;
+  }
+
+  function box() {
+    return {
+      i0: Math.min(TBOX.i0, TBOX.i1), i1: Math.max(TBOX.i0, TBOX.i1),
+      j0: Math.min(TBOX.j0, TBOX.j1), j1: Math.max(TBOX.j0, TBOX.j1)
+    };
+  }
+  function boxCount() { var b = box(); return (b.i1 - b.i0 + 1) * (b.j1 - b.j0 + 1); }
+  function inBox(i, j) { var b = box(); return i >= b.i0 && i <= b.i1 && j >= b.j0 && j <= b.j1; }
+  function eachSel(fn) {
+    var b = box();
+    for (var j = b.j0; j <= b.j1; j++) for (var i = b.i0; i <= b.i1; i++) fn(i, j);
+  }
+  function setAnchor(i, j, extend) {
+    var a = TNaxes();
+    i = U.clamp(i, 0, a.ni - 1); j = U.clamp(j, 0, a.nj - 1);
+    TSEL.i = i; TSEL.j = j;
+    if (extend) { TBOX.i1 = i; TBOX.j1 = j; }
+    else { TBOX.i0 = TBOX.i1 = i; TBOX.j0 = TBOX.j1 = j; }
+  }
+
+  /* ------------------------------------------------------------
+     Desfazer: guarda o estado inteiro antes de cada edicao. Sao
+     quatro tabelas de 48 numeros — copiar tudo custa menos que
+     manter um diario de alteracoes correto.
+     ------------------------------------------------------------ */
+  function mark() {
+    undoS.push(ATC.Tune.snapshot());
+    if (undoS.length > UNDO_MAX) undoS.shift();
+    redoS.length = 0;
+  }
+  function undo() {
+    if (!undoS.length) return false;
+    redoS.push(ATC.Tune.snapshot());
+    ATC.Tune.restore(undoS.pop());
+    return true;
+  }
+  function redo() {
+    if (!redoS.length) return false;
+    undoS.push(ATC.Tune.snapshot());
+    ATC.Tune.restore(redoS.pop());
+    return true;
+  }
 
   /* A tela principal do speed mode. Desenha e religa de uma vez: o
      conteudo e refeito por inteiro a cada troca de mapa ou preset,
@@ -220,6 +294,7 @@
     var key = TN.openMap();
     var m = TN.maps[key];
     var grid = st[key];
+    var stock = TN.stock(key);
 
     var h = '<p class="ep-sub">' + m.note + '</p>';
 
@@ -235,37 +310,78 @@
     h += '</div>';
 
     h += '<div class="tune-wrap">';
-    h += '<div class="tune-grid-box"><table class="tune-grid"><thead><tr><th class="corner">carga \\ rpm</th>' +
+    h += '<div class="tune-grid-box"><table class="tune-grid' + (deltaView ? ' delta' : '') +
+      '"><thead><tr><th class="corner">carga \\ rpm</th>' +
       TN.rpmAxis.map(function (r) { return '<th>' + U.br(r, 0) + '</th>'; }).join('') + '</tr></thead><tbody>';
     for (var j = TN.loadAxis.length - 1; j >= 0; j--) {
       h += '<tr><th>' + U.br(TN.loadAxis[j], 0) + ' %</th>';
       for (var i = 0; i < TN.rpmAxis.length; i++) {
-        var v = grid[j][i];
-        var t = (v - m.min) / Math.max(m.max - m.min, 1e-9);
-        var on = (i === TSEL.i && j === TSEL.j);
-        h += '<td class="tc' + (on ? ' on' : '') + '" data-i="' + i + '" data-j="' + j + '"' +
-          ' style="--t:' + t.toFixed(3) + '">' + U.br(v, m.dec) + '</td>';
+        h += cellHtml(i, j, grid, stock, m);
       }
       h += '</tr>';
     }
     h += '</tbody></table>';
+
+    /* ---- barra de ferramentas ---- */
     h += '<div class="tune-ctl">' +
-      '<button class="btn sm" data-adj="-1">−</button>' +
-      '<button class="btn sm" data-adj="1">+</button>' +
-      '<input type="number" id="tuneVal" step="' + m.step + '" value="' + grid[TSEL.j][TSEL.i].toFixed(m.dec) + '">' +
+      '<button class="btn sm" data-adj="-1" title="Diminuir a seleção (tecla −)">−</button>' +
+      '<button class="btn sm" data-adj="1" title="Aumentar a seleção (tecla +)">+</button>' +
+      '<input type="number" id="tuneVal" step="' + m.step + '" value="' + grid[TSEL.j][TSEL.i].toFixed(m.dec) + '" aria-label="Valor da célula">' +
       '<span class="tune-unit">' + m.unit + '</span>' +
-      '<button class="btn sm ghost" data-all="-1">− tudo</button>' +
-      '<button class="btn sm ghost" data-all="1">+ tudo</button>' +
-      '<button class="btn sm ghost" data-smooth="1">suavizar</button>' +
-      '<button class="btn sm ghost" data-reset="1">original</button>' +
-      '</div>' +
-      '<p class="tune-hint">Clique numa célula e use as setas do teclado para andar, + e − para ajustar. A superfície e a potência respondem na hora.</p>';
+      '<span class="tune-div"></span>' +
+      '<input type="number" id="tuneScale" step="1" value="100" aria-label="Escala em porcento">' +
+      '<span class="tune-unit">%</span>' +
+      '<button class="btn sm ghost" data-scale="1" title="Multiplicar a seleção por esta porcentagem">escalar</button>' +
+      '</div>';
+    h += '<div class="tune-ctl">' +
+      '<button class="btn sm ghost" data-interp="1" title="Interpolar entre as bordas da seleção (tecla I)">interpolar</button>' +
+      '<button class="btn sm ghost" data-smooth="1" title="Suavizar a seleção (tecla S)">suavizar</button>' +
+      '<button class="btn sm ghost" data-copy="1" title="Copiar a seleção (Ctrl+C)">copiar</button>' +
+      '<button class="btn sm ghost" data-paste="1" title="Colar a partir da âncora (Ctrl+V)">colar</button>' +
+      '<span class="tune-div"></span>' +
+      '<button class="btn sm ghost" data-undo="1" title="Desfazer (Ctrl+Z)">↶</button>' +
+      '<button class="btn sm ghost" data-redo="1" title="Refazer (Ctrl+Y)">↷</button>' +
+      '<span class="tune-div"></span>' +
+      '<button class="btn sm ghost' + (deltaView ? ' on' : '') + '" data-delta="1" title="Mostrar a diferença para o mapa de fábrica">Δ original</button>' +
+      '<button class="btn sm ghost' + (traceOn ? ' on' : '') + '" data-trace="1" title="Marcar as células por onde o motor passou">rastro</button>' +
+      '<button class="btn sm ghost" data-reset="1" title="Voltar todos os mapas de fábrica">original</button>' +
+      '</div>';
+    h += '<p class="tune-sel" id="tuneSel"></p>';
+    h += '<p class="tune-hint">Arraste para selecionar um bloco. Setas andam, <b>Shift+setas</b> esticam a seleção, ' +
+      '<b>+</b> e <b>−</b> ajustam, <b>I</b> interpola, <b>S</b> suaviza, <b>Ctrl+C/V</b> copia e cola, ' +
+      '<b>Ctrl+Z</b> desfaz. O anel branco é onde o motor está agora.</p>';
     h += '</div>';
+
     h += '<div class="tune-side">' +
       '<div class="chart-box"><canvas id="tuneSurf"></canvas></div>' +
+      '<div class="tune-live" id="tuneLive"></div>' +
       '<div id="tuneOut"></div></div>';
     h += '</div>';
     return h;
+  }
+
+  /* uma celula: valor, cor pela faixa do mapa, e as marcas de
+     selecao, ancora, rastro e ponto de operacao */
+  function cellHtml(i, j, grid, stock, m) {
+    var v = grid[j][i];
+    var t = (v - m.min) / Math.max(m.max - m.min, 1e-9);
+    var cls = 'tc';
+    if (i === TSEL.i && j === TSEL.j) cls += ' on';
+    if (inBox(i, j)) cls += ' sel';
+    var tg = traceGrid();
+    var hit = traceOn && tg[j] ? U.clamp(tg[j][i] / 40, 0, 1) : 0;
+    var txt, style;
+    if (deltaView) {
+      var d = v - stock[j][i];
+      var rel = U.clamp(d / Math.max(m.max - m.min, 1e-9) * 3, -1, 1);
+      txt = (d > 0 ? '+' : '') + U.br(d, m.dec);
+      style = '--t:' + t.toFixed(3) + ';--d:' + rel.toFixed(3) + ';--hit:' + hit.toFixed(2);
+      if (Math.abs(d) < Math.pow(10, -m.dec) / 2) cls += ' same';
+    } else {
+      txt = U.br(v, m.dec);
+      style = '--t:' + t.toFixed(3) + ';--hit:' + hit.toFixed(2);
+    }
+    return '<td class="' + cls + '" data-i="' + i + '" data-j="' + j + '" style="' + style + '">' + txt + '</td>';
   }
 
   function tunePaint() {
@@ -287,6 +403,8 @@
       hint: 'arraste para girar'
     });
 
+    paintSelInfo();
+
     var sw = TN.sweep();
     var danger = sw.knockPct > 2 || sw.leanPct > 2;
     var out = $('#tuneOut');
@@ -307,11 +425,97 @@
       '</div>';
   }
 
+  /* a linha que resume a selecao: quantas celulas, e o que ha
+     dentro delas. Editar em bloco sem ver o bloco e chute. */
+  function paintSelInfo() {
+    var e = $('#tuneSel');
+    if (!e) return;
+    var TN = ATC.Tune, m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+    var vs = [];
+    eachSel(function (i, j) { vs.push(g[j][i]); });
+    var b = box();
+    var n = vs.length;
+    var stock = TN.stock(TN.openMap());
+    var dsum = 0;
+    eachSel(function (i, j) { dsum += g[j][i] - stock[j][i]; });
+    e.innerHTML =
+      'seleção <b>' + (b.i1 - b.i0 + 1) + '×' + (b.j1 - b.j0 + 1) + '</b> (' + n + ' célula' + (n > 1 ? 's' : '') + ')' +
+      ' · mín ' + U.br(U.min(vs), m.dec) + ' · méd ' + U.br(U.mean(vs), m.dec) +
+      ' · máx ' + U.br(U.max(vs), m.dec) + ' ' + m.unit +
+      ' · média ' + (dsum / n >= 0 ? '+' : '') + U.br(dsum / n, m.dec) + ' sobre o original' +
+      (clip ? ' · área copiada ' + clip[0].length + '×' + clip.length : '');
+  }
+
   function tuneSet(i, j, v) {
     var TN = ATC.Tune, m = TN.maps[TN.openMap()];
     var g = TN.state()[TN.openMap()];
     g[j][i] = U.clamp(v, m.min, m.max);
     TN.save();
+  }
+
+  /* ------------------------------------------------------------
+     Operacoes de bloco
+     ------------------------------------------------------------ */
+  function opAdjust(dir) {
+    var m = ATC.Tune.maps[ATC.Tune.openMap()], g = ATC.Tune.state()[ATC.Tune.openMap()];
+    mark();
+    eachSel(function (i, j) { tuneSet(i, j, g[j][i] + dir * m.step); });
+  }
+  function opScale(pct) {
+    var g = ATC.Tune.state()[ATC.Tune.openMap()];
+    mark();
+    eachSel(function (i, j) { tuneSet(i, j, g[j][i] * pct / 100); });
+  }
+  /* interpolacao bilinear a partir dos quatro cantos da selecao: e
+     a operacao que mais se usa numa mesa de verdade, porque mapa
+     bom e mapa liso entre dois pontos que voce mediu */
+  function opInterp() {
+    var b = box(), g = ATC.Tune.state()[ATC.Tune.openMap()];
+    var ni = b.i1 - b.i0, nj = b.j1 - b.j0;
+    if (ni === 0 && nj === 0) return false;
+    mark();
+    var c00 = g[b.j0][b.i0], c10 = g[b.j0][b.i1], c01 = g[b.j1][b.i0], c11 = g[b.j1][b.i1];
+    for (var j = b.j0; j <= b.j1; j++) {
+      for (var i = b.i0; i <= b.i1; i++) {
+        var tx = ni ? (i - b.i0) / ni : 0, ty = nj ? (j - b.j0) / nj : 0;
+        tuneSet(i, j, c00 * (1 - tx) * (1 - ty) + c10 * tx * (1 - ty) +
+                      c01 * (1 - tx) * ty + c11 * tx * ty);
+      }
+    }
+    return true;
+  }
+  function opSmooth() {
+    var g = ATC.Tune.state()[ATC.Tune.openMap()];
+    var cp = g.map(function (r) { return r.slice(); });
+    mark();
+    eachSel(function (i, j) {
+      var sum = 0, n = 0;
+      for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) {
+        var jj = j + dj, ii = i + di;
+        if (cp[jj] && isFinite(cp[jj][ii])) { sum += cp[jj][ii]; n++; }
+      }
+      tuneSet(i, j, sum / n);
+    });
+  }
+  function opCopy() {
+    var b = box(), g = ATC.Tune.state()[ATC.Tune.openMap()];
+    clip = [];
+    for (var j = b.j0; j <= b.j1; j++) clip.push(g[j].slice(b.i0, b.i1 + 1));
+  }
+  function opPaste() {
+    if (!clip) return false;
+    var a = TNaxes();
+    mark();
+    for (var j = 0; j < clip.length; j++) {
+      for (var i = 0; i < clip[j].length; i++) {
+        var jj = TSEL.j + j, ii = TSEL.i + i;
+        if (jj < a.nj && ii < a.ni) tuneSet(ii, jj, clip[j][i]);
+      }
+    }
+    TBOX.i0 = TSEL.i; TBOX.j0 = TSEL.j;
+    TBOX.i1 = Math.min(TSEL.i + clip[0].length - 1, a.ni - 1);
+    TBOX.j1 = Math.min(TSEL.j + clip.length - 1, a.nj - 1);
+    return true;
   }
 
   function wireTune() {
@@ -320,10 +524,11 @@
     if (!pane || !TN) return;
     tunePaint();
 
-    /* o campo de valor e refeito a cada render, entao e religado a
+    /* os campos sao refeitos a cada render, entao sao religados a
        cada render; o resto vive no painel, que sobrevive */
     var val = document.getElementById('tuneVal');
     if (val) val.addEventListener('change', function () {
+      mark();
       tuneSet(TSEL.i, TSEL.j, parseFloat(val.value));
       refreshTune();
     });
@@ -331,17 +536,42 @@
     if (pane.__w) return;
     pane.__w = 1;
 
-    pane.addEventListener('click', function (ev) {
-      var m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+    /* ---- arrasto para selecionar ---- */
+    pane.addEventListener('pointerdown', function (ev) {
       var cell = ev.target.closest('.tc');
-      if (cell) {
-        TSEL.i = +cell.dataset.i; TSEL.j = +cell.dataset.j;
-        refreshTune(); if (A) A.play('tick'); return;
-      }
+      if (!cell) return;
+      ev.preventDefault();
+      pane.focus();
+      var i = +cell.dataset.i, j = +cell.dataset.j;
+      if (ev.shiftKey) { TSEL.i = i; TSEL.j = j; TBOX.i1 = i; TBOX.j1 = j; }
+      else { setAnchor(i, j, false); }
+      drag = true;
+      paintCells();
+      if (A) A.play('tick');
+    });
+    pane.addEventListener('pointermove', function (ev) {
+      if (!drag) return;
+      var cell = ev.target.closest('.tc');
+      if (!cell) return;
+      var i = +cell.dataset.i, j = +cell.dataset.j;
+      if (i === TBOX.i1 && j === TBOX.j1) return;
+      TBOX.i1 = i; TBOX.j1 = j; TSEL.i = i; TSEL.j = j;
+      paintCells();
+    });
+    window.addEventListener('pointerup', function () {
+      if (!drag) return;
+      drag = null;
+      refreshTune();
+    });
+
+    /* ---- botoes ---- */
+    pane.addEventListener('click', function (ev) {
       var tab = ev.target.closest('[data-map]');
       if (tab) { TN.openMap(tab.dataset.map); renderRemap(); if (A) A.play('tick'); return; }
+
       var pre = ev.target.closest('[data-preset]');
       if (pre) {
+        mark();
         TN.applyPreset(pre.dataset.preset);
         renderRemap();
         if (A) A.play('relay');
@@ -349,59 +579,179 @@
         return;
       }
       var adj = ev.target.closest('[data-adj]');
-      if (adj) { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] + (+adj.dataset.adj) * m.step); refreshTune(); return; }
-      var all = ev.target.closest('[data-all]');
-      if (all) {
-        var d = (+all.dataset.all) * m.step;
-        for (var j = 0; j < g.length; j++) for (var i = 0; i < g[j].length; i++) tuneSet(i, j, g[j][i] + d);
-        refreshTune(); if (A) A.play('press'); return;
+      if (adj) { opAdjust(+adj.dataset.adj); refreshTune(); return; }
+
+      var sc = ev.target.closest('[data-scale]');
+      if (sc) {
+        var pct = parseFloat((document.getElementById('tuneScale') || {}).value);
+        if (!isFinite(pct)) return;
+        opScale(pct); refreshTune(); if (A) A.play('press');
+        if (M) M.toast('Seleção escalada para ' + U.br(pct, 0) + ' %', null, 1800);
+        return;
       }
-      if (ev.target.closest('[data-smooth]')) {
-        var cp = g.map(function (r) { return r.slice(); });
-        for (var j2 = 0; j2 < g.length; j2++) for (var i2 = 0; i2 < g[j2].length; i2++) {
-          var sum = 0, n = 0;
-          for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) {
-            var jj = j2 + dj, ii = i2 + di;
-            if (cp[jj] && isFinite(cp[jj][ii])) { sum += cp[jj][ii]; n++; }
-          }
-          tuneSet(i2, j2, sum / n);
-        }
-        refreshTune(); if (A) A.play('turbo'); return;
+      if (ev.target.closest('[data-interp]')) {
+        if (opInterp()) { refreshTune(); if (A) A.play('turbo'); }
+        else if (M) M.toast('Selecione um bloco antes de interpolar', null, 2200);
+        return;
+      }
+      if (ev.target.closest('[data-smooth]')) { opSmooth(); refreshTune(); if (A) A.play('turbo'); return; }
+      if (ev.target.closest('[data-copy]')) {
+        opCopy(); paintSelInfo(); if (A) A.play('tick');
+        if (M) M.toast('Área copiada', null, 1500);
+        return;
+      }
+      if (ev.target.closest('[data-paste]')) {
+        if (opPaste()) { refreshTune(); if (A) A.play('press'); }
+        else if (M) M.toast('Nada copiado ainda', null, 1800);
+        return;
+      }
+      if (ev.target.closest('[data-undo]')) {
+        if (undo()) { refreshTune(); if (A) A.play('relay'); }
+        else if (M) M.toast('Nada a desfazer', null, 1500);
+        return;
+      }
+      if (ev.target.closest('[data-redo]')) {
+        if (redo()) { refreshTune(); if (A) A.play('relay'); }
+        else if (M) M.toast('Nada a refazer', null, 1500);
+        return;
+      }
+      if (ev.target.closest('[data-delta]')) {
+        deltaView = !deltaView; renderRemap(); if (A) A.play('tick');
+        if (M) M.toast(deltaView ? 'Mostrando a diferença para o mapa de fábrica' : 'Mostrando os valores do mapa', null, 2400);
+        return;
+      }
+      if (ev.target.closest('[data-trace]')) {
+        traceOn = !traceOn;
+        if (!traceOn) trace = null;
+        renderRemap(); if (A) A.play('tick');
+        if (M) M.toast(traceOn ? 'Rastro ligado — as células acesas são por onde o motor passou' : 'Rastro desligado', null, 2600);
+        return;
       }
       if (ev.target.closest('[data-reset]')) {
+        mark();
         TN.reset(); renderRemap(); if (A) A.play('relay');
         if (M) M.toast('Mapas de fábrica restaurados', null, 2200);
       }
     });
 
+    /* ---- teclado ---- */
     pane.addEventListener('keydown', function (ev) {
       var g = TN.state()[TN.openMap()], m = TN.maps[TN.openMap()];
-      var k = ev.key, moved = true;
-      if (k === 'ArrowRight') TSEL.i = Math.min(TSEL.i + 1, TN.rpmAxis.length - 1);
-      else if (k === 'ArrowLeft') TSEL.i = Math.max(TSEL.i - 1, 0);
-      else if (k === 'ArrowUp') TSEL.j = Math.min(TSEL.j + 1, TN.loadAxis.length - 1);
-      else if (k === 'ArrowDown') TSEL.j = Math.max(TSEL.j - 1, 0);
-      else if (k === '+' || k === '=') { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] + m.step); }
-      else if (k === '-' || k === '_') { tuneSet(TSEL.i, TSEL.j, g[TSEL.j][TSEL.i] - m.step); }
-      else moved = false;
-      if (moved) { ev.preventDefault(); refreshTune(); }
+      var k = ev.key, done = true;
+      var ctrl = ev.ctrlKey || ev.metaKey;
+      if (ctrl && (k === 'z' || k === 'Z')) { if (!(ev.shiftKey ? redo() : undo())) done = false; }
+      else if (ctrl && (k === 'y' || k === 'Y')) { if (!redo()) done = false; }
+      else if (ctrl && (k === 'c' || k === 'C')) { opCopy(); paintSelInfo(); done = false; ev.preventDefault(); }
+      else if (ctrl && (k === 'v' || k === 'V')) { if (!opPaste()) done = false; }
+      else if (ctrl && (k === 'a' || k === 'A')) {
+        var a = TNaxes();
+        TBOX.i0 = 0; TBOX.j0 = 0; TBOX.i1 = a.ni - 1; TBOX.j1 = a.nj - 1;
+      }
+      else if (k === 'ArrowRight') setAnchor(TSEL.i + 1, TSEL.j, ev.shiftKey);
+      else if (k === 'ArrowLeft') setAnchor(TSEL.i - 1, TSEL.j, ev.shiftKey);
+      else if (k === 'ArrowUp') setAnchor(TSEL.i, TSEL.j + 1, ev.shiftKey);
+      else if (k === 'ArrowDown') setAnchor(TSEL.i, TSEL.j - 1, ev.shiftKey);
+      else if (k === '+' || k === '=') opAdjust(1);
+      else if (k === '-' || k === '_') opAdjust(-1);
+      else if (k === 'i' || k === 'I') opInterp();
+      else if (k === 's' || k === 'S') opSmooth();
+      else done = false;
+      if (done) { ev.preventDefault(); refreshTune(); }
     });
     pane.setAttribute('tabindex', '0');
   }
 
-  /* redesenha so a tabela e a lateral, sem remontar a tela inteira */
-  function refreshTune() {
+  /* redesenha so as celulas, sem tocar no resto da tela */
+  function paintCells() {
     var TN = ATC.Tune, m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+    var stock = TN.stock(TN.openMap()), tg = traceGrid();
     var pane = $('#remapPane');
+    if (!pane) return;
     pane.querySelectorAll('.tc').forEach(function (c) {
       var i = +c.dataset.i, j = +c.dataset.j, v = g[j][i];
-      c.textContent = U.br(v, m.dec);
+      var txt = deltaView ? (function () {
+        var d = v - stock[j][i];
+        return (d > 0 ? '+' : '') + U.br(d, m.dec);
+      })() : U.br(v, m.dec);
+      if (c.textContent !== txt) c.textContent = txt;
       c.style.setProperty('--t', ((v - m.min) / Math.max(m.max - m.min, 1e-9)).toFixed(3));
+      if (deltaView) {
+        var d2 = v - stock[j][i];
+        c.style.setProperty('--d', U.clamp(d2 / Math.max(m.max - m.min, 1e-9) * 3, -1, 1).toFixed(3));
+        c.classList.toggle('same', Math.abs(d2) < Math.pow(10, -m.dec) / 2);
+      }
+      if (traceOn) c.style.setProperty('--hit', U.clamp(tg[j][i] / 40, 0, 1).toFixed(2));
       c.classList.toggle('on', i === TSEL.i && j === TSEL.j);
+      c.classList.toggle('sel', inBox(i, j));
+      c.classList.toggle('live', i === liveCell.i && j === liveCell.j);
     });
+  }
+
+  /* redesenha a tabela, a lateral e a leitura da selecao */
+  function refreshTune() {
+    paintCells();
+    var TN = ATC.Tune, m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
     var val = document.getElementById('tuneVal');
     if (val) val.value = g[TSEL.j][TSEL.i].toFixed(m.dec);
     tunePaint();
+  }
+
+  /* ------------------------------------------------------------
+     Ponto de operacao ao vivo
+     ------------------------------------------------------------
+     A celula por onde o motor esta passando agora ganha um anel, e
+     o rastro conta quantas vezes cada uma foi visitada. E o que
+     transforma a tabela de planilha em instrumento: da para ver
+     que metade do mapa nunca e usada na rua.
+     ------------------------------------------------------------ */
+  var liveAcc = 0;
+  function liveFrame(dt) {
+    if (!SP.isOn() || !ATC.Sim || !ATC.Tune) return;
+    var tab = document.getElementById('tab-remap');
+    if (!tab || tab.hidden) return;
+    liveAcc += dt;
+    if (liveAcc < 0.09) return;
+    liveAcc = 0;
+
+    var s = ATC.Sim.read();
+    var TN = ATC.Tune;
+    var load = U.clamp(20 + s.tpsSm * 0.8, 20, 100);
+    var i = nearest(TN.rpmAxis, s.rpm), j = nearest(TN.loadAxis, load);
+    var tg = traceGrid();
+    if (traceOn) tg[j][i] = Math.min(tg[j][i] + 1, 60);
+
+    var live = $('#tuneLive');
+    if (live) {
+      var m = TN.maps[TN.openMap()], g = TN.state()[TN.openMap()];
+      live.innerHTML =
+        '<span class="tl-l">ONDE O MOTOR ESTÁ</span>' +
+        '<span class="tl-v">' + U.br(s.rpm, 0) + ' rpm · ' + U.br(load, 0) + ' % carga</span>' +
+        '<span class="tl-m">' + m.name + ' aplicado: <b>' +
+        U.br(TN.at(g, U.clamp(s.rpm, TN.rpmAxis[0], TN.rpmAxis[TN.rpmAxis.length - 1]), load), m.dec) +
+        ' ' + m.unit + '</b></span>';
+    }
+    /* repintar as 48 celulas dez vezes por segundo por causa de uma
+       so que mudou e desperdicio: mexe-se apenas nas afetadas */
+    var pane = $('#remapPane');
+    if (!pane) return;
+    if (traceOn) {
+      var hot = pane.querySelector('.tc[data-i="' + i + '"][data-j="' + j + '"]');
+      if (hot) hot.style.setProperty('--hit', U.clamp(tg[j][i] / 40, 0, 1).toFixed(2));
+    }
+    if (i === liveCell.i && j === liveCell.j) return;
+    var old = pane.querySelector('.tc.live');
+    if (old) old.classList.remove('live');
+    liveCell.i = i; liveCell.j = j;
+    var now = pane.querySelector('.tc[data-i="' + i + '"][data-j="' + j + '"]');
+    if (now) now.classList.add('live');
+  }
+  function nearest(axis, v) {
+    var best = 0, bd = Infinity;
+    for (var i = 0; i < axis.length; i++) {
+      var d = Math.abs(axis[i] - v);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
   }
   /* ============================================================
      7. DYNO — varredura de rotacao

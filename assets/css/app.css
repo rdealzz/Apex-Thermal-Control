@@ -395,7 +395,13 @@ nav.tabs button:hover{color:var(--ink-2)}
 nav.tabs button[aria-selected="true"]{color:var(--ink);font-weight:640}
 nav.tabs button[aria-selected="true"] .idx{color:var(--acc)}
 nav.tabs button.speed-only{display:none}
+/* No speed mode a barra e so dele: as abas de trabalho saem de cena
+   e a volta e pelo proprio botao SPEED MODE, no cabecalho. Misturar
+   as duas listas obrigava a percorrer oito abas de relatorio para
+   chegar na que interessa — e empurrava as ultimas para fora da
+   tela. */
 [data-mode="speed"] nav.tabs button.speed-only{display:inline-flex}
+[data-mode="speed"] nav.tabs button:not(.speed-only){display:none}
 [data-mode="speed"] nav.tabs button{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;text-transform:uppercase}
 
 main{padding:8px 0 96px;min-height:60vh}

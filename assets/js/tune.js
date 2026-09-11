@@ -206,6 +206,25 @@
   TN.save = save;
   TN.applyPreset = applyPreset;
   TN.reset = function () { state = fresh(); save(); };
+  /* o mapa de fabrica, para a tela poder mostrar a diferenca */
+  TN.stock = function (k) { return blank(k); };
+  /* copia inteira do estado, para desfazer e refazer */
+  TN.snapshot = function () {
+    ensure();
+    var o = {};
+    Object.keys(MAPS).forEach(function (k) {
+      o[k] = state[k].map(function (r) { return r.slice(); });
+    });
+    return o;
+  };
+  TN.restore = function (snap) {
+    if (!snap) return;
+    ensure();
+    Object.keys(MAPS).forEach(function (k) {
+      if (snap[k]) state[k] = snap[k].map(function (r) { return r.slice(); });
+    });
+    save();
+  };
   TN.openMap = function (k) { if (k) open = k; return open; };
   TN.sel = sel;
   TN.at = at;

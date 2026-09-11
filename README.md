@@ -51,7 +51,9 @@ tipográfica, quase nenhum efeito. É o que vai impresso no relatório.
 
 **Speed mode** é um easter egg oficial — homenagem ao painel automotivo, ativado pelo
 botão **SPEED MODE** no cabeçalho. Ele troca a interface inteira por um HUD de carbono e
-tem um centro só: a tela de **Remap**. Entrar no modo cai nela.
+tem um centro só: a tela de **Remap**. Entrar no modo cai nela, e a barra de abas passa a
+ser só dele — as oito abas de trabalho saem de cena, e a volta é pelo mesmo botão. Misturar
+as duas listas obrigava a percorrer oito abas de relatório para chegar na que interessa.
 
 | Tela | O que mostra |
 | --- | --- |
@@ -164,10 +166,27 @@ O teto é baixo de propósito: mesmo no máximo, isto é som de interface.
 
 ### O mapa
 
-A tela de **Remap** é uma tabela rotação × carga que se edita célula a célula —
-combustível, ignição, pressão de turbo e AFR alvo — com a superfície do mapa ao lado e o
-resultado aparecendo na hora. Clique numa célula, ande com as setas, ajuste com + e −. Há
-quatro presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
+A tela de **Remap** é uma tabela rotação × carga que se edita como se edita mapa de
+verdade — combustível, ignição, pressão de turbo e AFR alvo — com a superfície ao lado e o
+resultado aparecendo na hora.
+
+| Função | Como |
+| --- | --- |
+| **Seleção em bloco** | arraste pela tabela, ou `Shift`+setas. A linha embaixo resume o bloco: quantas células, mínimo, médio, máximo e quanto ele está acima do original |
+| **Ajuste** | `+` e `−` mexem no bloco inteiro, um passo por vez |
+| **Escala** | multiplica o bloco por uma porcentagem — subir 8 % em toda a zona de carga alta é um clique |
+| **Interpolar** (`I`) | preenche o bloco por interpolação bilinear entre os quatro cantos. É a operação que mais se usa numa mesa de verdade, porque mapa bom é mapa liso entre dois pontos que você mediu |
+| **Suavizar** (`S`) | média dos vizinhos, célula a célula |
+| **Copiar / colar** | `Ctrl+C` e `Ctrl+V`, a área cola a partir da âncora |
+| **Desfazer / refazer** | `Ctrl+Z` e `Ctrl+Y`, 40 passos |
+| **Δ original** | troca os valores pela diferença para o mapa de fábrica, numa escala divergente — laranja acima, azul abaixo, neutro no que não mudou |
+| **Rastro** | cada célula por onde o motor passou acende um anel interno, mais forte quanto mais visitada |
+| **Ponto de operação** | o anel branco pulsando é onde o motor está **agora**; ao lado da superfície, a leitura diz a rotação, a carga e o valor que o mapa está entregando ali |
+
+O rastro e o ponto de operação são o que transformam a tabela de planilha em instrumento:
+dá para ver, em dez segundos de piloto virtual, que metade do mapa nunca é usada.
+
+Há quatro presets prontos (Original, Rua, Pista, Míssil) e tudo fica salvo no navegador.
 
 Embaixo da tabela ficam os módulos que dão sentido a ela. O mapa diz o que **pedir**; eles
 mostram o que **sai** — e não leem a tabela: leem o motor simulado, que é onde o mapa
