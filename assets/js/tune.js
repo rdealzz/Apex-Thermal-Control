@@ -29,8 +29,8 @@
     fuel: {
       name: 'Combustível', unit: '%', dec: 0, min: 40, max: 340, step: 2,
       ramp: ['#0c0f14', '#1e242d', '#3d4553', '#7b8593', '#c2c8d4', '#e02b1d'],
-      note: 'Massa injetada em relação ao mapa de fábrica. Falta disso em carga alta empobrece a mistura e derrete pistão; excesso afoga e rouba potência.',
-      base: function (rpm, load) { return 100 + 8 * (load / 100) + 4 * Math.sin(rpm / 1500); }
+      note: 'Massa injetada em relação ao que o ar que está entrando pede. O mapa de fábrica anda alguns por cento abaixo do ponto de melhor potência — é calibração de consumo. Subir daqui rende; exagerar afoga e rouba potência de volta.',
+      base: function (rpm, load) { return 88 + 6 * (load / 100) + 4 * Math.sin(rpm / 1500); }
     },
     ign: {
       name: 'Ignição', unit: '° APMS', dec: 1, min: 0, max: 42, step: 0.5,
@@ -58,12 +58,15 @@
      alguem exagerar por conta propria.                            */
   var PRESETS = {
     stock:   { name: 'Original', f: 1.00, i: 1.00, b: 0.00, a: 0.0 },
-    street:  { name: 'Rua',      f: 1.02, i: 0.98, b: 0.30, a: -1.2 },
-    track:   { name: 'Pista',    f: 1.04, i: 0.94, b: 0.70, a: -1.8 },
-    missile: { name: 'Míssil',   f: 1.06, i: 0.88, b: 1.30, a: -2.2 }
+    street:  { name: 'Rua',      f: 1.07, i: 1.12, b: 0.00, a: +0.2 },
+    track:   { name: 'Pista',    f: 1.09, i: 1.16, b: 0.07, a: +0.1 },
+    missile: { name: 'Míssil',   f: 1.11, i: 1.19, b: 0.12, a: 0.0 }
   };
 
   var P_ATM = 1.013;                      /* bar, pressao ambiente */
+  /* calibrado para o mapa de fabrica fechar nos 140 cv / 179 N.m que
+     a Chevrolet publica para o Cruze LT 1.8 a gasolina */
+  var T_REF = 213;
   var state = null, open = 'fuel', sel = { i: 3, j: 4 };
 
   function blank(key) {
@@ -142,28 +145,47 @@
     var boost = at(s.boost, rpm, load);
     var afr = at(s.afr, rpm, load);
 
-    /* curva de torque do 1.8 aspirado, normalizada, com pico a 4200 */
-    var x = rpm / 4200;
-    var base = 165 * (1.02 - 0.42 * Math.pow(x - 1, 2) - 0.10 * Math.pow(x - 1, 3));
+    /* Curva do 1.8 Ecotec de verdade: pico de torque a 4.000 e pico de
+       potencia perto de 6.200, com a queda depois do pico mais rapida
+       do que a subida antes dele — que e como motor aspirado se
+       comporta. Com o mapa de fabrica isto tem que dar os 140 cv e os
+       179 N.m de catalogo; os numeros de folheto sao a unica ancora
+       que esta tela tem com a realidade.                            */
+    var x = rpm / 4000;
+    var d = x - 1;
+    var base = T_REF * (1 - (d < 0 ? 0.55 : 0.42) * d * d - 0.16 * Math.max(d, 0) * d * d);
     base = Math.max(base, 20);
 
-    /* pressao: a massa de ar escala com a razao de pressao */
-    var fBoost = (P_ATM + boost) / P_ATM;
+    /* Pressao. A massa de ar escala com a razao de pressao, mas o
+       torque nao acompanha na proporcao: o ar chega mais quente, a
+       calibracao tem de recuar avanco e enriquecer, e o proprio turbo
+       come parte do que produz. O expoente abaixo de 1 e o que impede
+       a tela de prometer 200 cv num 1.8 com meio bar — que e o tipo
+       de numero que so existe em anuncio.                          */
+    var fPress = (P_ATM + boost) / P_ATM;
+    var fBoost = Math.pow(fPress, 0.72);
 
-    /* combustivel: precisa acompanhar o ar. Sobra afoga, falta arrisca */
-    var need = 100 * fBoost;
+    /* Combustivel. A melhor potencia nao esta no exato do ar: esta uns
+       cinco por cento acima dele, porque o excesso resfria a camara e
+       deixa avancar mais. O mapa de fabrica anda abaixo disso, entao
+       ha o que ganhar subindo — e o que perder exagerando, que e o
+       que faz esta tabela valer a pena mexer.                       */
+    var need = 100 * fPress;
     var ratio = fuel / need;
-    var fFuel = ratio >= 1
-      ? 1 - 0.35 * Math.pow(U.clamp(ratio - 1, 0, 1), 1.5)   // afogado
-      : 1 - 0.20 * (1 - ratio);                              // pobre: rende ate quebrar
-    var lean = ratio < 0.94 && load > 70;
+    var fFuel = 1 - 2.2 * Math.pow(ratio - 1.05, 2);
+    var lean = ratio < 0.90 && load > 70;
 
-    /* ignicao: otimo em torno de 26 graus, com limite de detonacao que
-       recua conforme a pressao sobe                                  */
-    var knockLimit = 30 - 7 * boost;
-    var fIgn = 1 - 0.020 * Math.pow(ign - 26, 2) / 10;
+    /* Ignicao. O avanco de melhor rendimento nao e um numero so: sobe
+       com a rotacao, porque ha menos tempo para queimar. O mapa de
+       fabrica anda alguns graus abaixo dele — e por isso que remap de
+       aspirado rende alguma coisa, e pouca: uns 5 a 8 %, nao 50.
+       O limite de detonacao segue o mesmo caminho e desaba com a
+       pressao, que e o que impede subir avanco e turbo juntos.      */
+    var optIgn = 14 + 10 * (rpm / 6400);
+    var knockLimit = 24 + 6 * (rpm / 6400) - 9 * boost;
+    var fIgn = 1 - 0.0038 * Math.pow(ign - optIgn, 2);
     var knock = ign > knockLimit;
-    if (knock) fIgn -= 0.06 * (ign - knockLimit);
+    if (knock) fIgn -= 0.05 * (ign - knockLimit);
 
     /* AFR: potencia mora perto de 12,5 */
     var fAfr = 1 - 0.035 * Math.pow(afr - 12.5, 2);
@@ -176,7 +198,7 @@
       torque: torque, power: power, boost: boost, afr: afr, ign: ign, fuel: fuel,
       knock: knock, lean: lean, knockLimit: knockLimit,
       /* o calor rejeitado cresce junto: e o gancho com a parte seria */
-      heatFactor: fBoost * U.clamp(ratio, 0.8, 1.4)
+      heatFactor: fPress * U.clamp(ratio, 0.8, 1.4)
     };
   };
 

@@ -229,20 +229,58 @@ Embaixo da tabela ficam os módulos que dão sentido a ela. O mapa diz o que **p
 mostram o que **sai** — e não leem a tabela: leem o motor simulado, que é onde o mapa
 acaba desembocando.
 
-O que faz valer a brincadeira é o motor de mentira ter os compromissos certos:
+O que faz valer a brincadeira é o motor de mentira ter os compromissos certos, e os
+números partirem de onde o carro de verdade está. Com o mapa de fábrica a tela dá os
+**140 cv e 185 N·m** que a Chevrolet publica para o Cruze LT 1.8 — os dados de catálogo são
+a única âncora que essa parte tem com a realidade, e é a partir deles que tudo se mede.
 
-- pressão sem combustível na mesma proporção **empobrece a mistura** e derrete pistão;
-- avanço acima do limite que a pressão aguenta **detona**, e a potência despenca;
+| Preset | Potência | Torque |
+| --- | --- | --- |
+| Original | 140 cv a 6.100 | 185 N·m a 4.300 |
+| Rua | 153 cv | 202 N·m |
+| Pista | 163 cv | 216 N·m |
+| Míssil | 169 cv | 225 N·m |
+
+Um 1.8 aspirado não faz 200 cv nem com o melhor mapa do mundo, e a tela não finge que faz:
+o ganho da pressão entra com expoente abaixo de 1, porque o ar chega mais quente, a
+calibração tem de recuar avanço e enriquecer, e o próprio turbo come parte do que produz.
+
+Editando à mão, sobre o mapa de fábrica:
+
+| O que você faz | O que dá |
+| --- | --- |
+| +4 % de combustível | 143 cv |
+| +8 % de combustível | 145 cv |
+| +2° de ignição | 147 cv |
+| +4° de ignição | 150 cv |
+| +8 % e +4° juntos | 155 cv |
+| +8° de ignição | 142 cv — passou do ponto de melhor rendimento |
+| +14° de ignição | 81 cv, detonando em 60 % da faixa |
+| −25 % de combustível | 103 cv, mistura pobre na faixa inteira |
+
+Os três compromissos que produzem isso:
+
+- o ponto de melhor potência fica uns 5 % **acima** do que o ar pede, não no exato: o
+  excesso resfria a câmara. O mapa de fábrica anda abaixo disso, que é calibração de
+  consumo — daí sobrar o que ganhar, e pouco;
+- o avanço de melhor rendimento **sobe com a rotação**, porque há menos tempo para queimar,
+  e o limite de detonação desaba com a pressão: é o que impede subir avanço e turbo juntos;
 - AFR longe de 12,5:1 custa potência.
 
-Os presets são mapas que fecham — 122 cv de fábrica, 204 no Míssil, todos limpos. Quebrar
-é por conta de quem edita, e a tela avisa qual dos dois jeitos você escolheu.
+Os presets são mapas que fecham, todos limpos. Quebrar é por conta de quem edita, e a tela
+avisa qual dos jeitos você escolheu.
 
 E o dinamômetro fecha o ciclo com a parte séria: calcula o calor que aquele motor jogaria
-no líquido e compara com o que o núcleo entrega a 100 km/h, pelas correlações com o fator
-de calibração da coleta carregada. Depois usa a capacitância concentrada do próprio modelo
-térmico para responder a única pergunta que importa: **por quanto tempo**. Com o mapa de
-fábrica, 31 segundos de pé embaixo até o alarme. Com o Míssil, 6.
+no líquido e compara com o que o núcleo entrega **na velocidade em que a potência máxima
+acontece** — 175 km/h, não os 100 km/h do ciclo urbano, porque comparar o pico de potência
+com a capacidade a 100 é comparar duas condições que nunca coexistem. Depois usa a
+capacitância concentrada do próprio modelo térmico para responder a pergunta que importa:
+**por quanto tempo**.
+
+Com o mapa de fábrica dá empate técnico — 113 kW pedidos contra 112 kW de capacidade — que
+é exatamente o que um radiador de série é: dimensionado para o ciclo de uso, não para
+potência máxima indefinida. Com o Míssil faltam 26 kW, e o líquido leva 19 segundos de pé
+embaixo para sair de 100 °C e bater no limite crítico.
 
 Todo o speed mode é ficção assumida e está marcado como tal em cada tela — a badge
 **bancada fictícia** aparece no cabeçalho das duas telas principais. Nenhum número dele

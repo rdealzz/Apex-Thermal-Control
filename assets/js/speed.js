@@ -958,7 +958,13 @@
        nao na media do ciclo urbano: la o ar mal passa pelo nucleo. A
        condicao declarada e 100 km/h com ventilador, liquido a 100 C —
        e o modelo usado carrega o fator de calibracao da coleta.      */
-    var vRef = 100, tHot = 100;
+    /* A velocidade de referencia nao pode ser fixa em 100 km/h: potencia
+       maxima acontece na marcha longa, perto de 180, e a essa altura o
+       ar de face e outro — o mesmo nucleo rejeita muito mais calor.
+       Comparar o pico de potencia com a capacidade a 100 km/h e
+       comparar duas condicoes que nunca coexistem, e foi o que fazia o
+       mapa de fabrica aparecer como se cozinhasse o motor.          */
+    var vRef = 175, tHot = 100;
 
     dyno.running = true;
     $('#btnDyno').disabled = true;
@@ -1041,11 +1047,11 @@
           veredito = '<b style="color:var(--crit)">DETONAÇÃO NO MAPA.</b> A passada rodou com a ignição acima do limite que esta pressão aguenta, e a potência de pico caiu por causa disso. Recue o avanço na aba <b>Tune</b> antes de olhar qualquer outro número.';
         } else if (lean) {
           veredito = '<b style="color:var(--crit)">MISTURA POBRE SOB CARGA.</b> Falta combustível para o ar que o mapa está colocando. Suba o mapa de combustível na proporção da pressão antes de subir mais nada.';
-        } else if (margem >= 0.15) {
+        } else if (margem >= 0.10) {
           veredito = '<b style="color:var(--ok)">SOBRA RADIADOR.</b> No pico o mapa pede <b>' + U.br(peakHeat, 0) +
             ' kW</b> e este núcleo entrega <b>' + U.br(qMaxReal, 0) + ' kW</b> a ' + U.br(vRef, 0) +
             ' km/h com o líquido a ' + U.br(tHot, 0) + ' °C. Dá para segurar potência máxima sem a temperatura subir.';
-        } else if (margem >= -0.25) {
+        } else if (margem >= -0.12) {
           veredito = '<b style="color:var(--warn)">NO LIMITE.</b> O mapa pede <b>' + U.br(peakHeat, 0) +
             ' kW</b> contra <b>' + U.br(qMaxReal, 0) + ' kW</b> de capacidade a ' + U.br(vRef, 0) +
             ' km/h. Serve para arrancada, não para manter — é mais ou menos onde um carro de série vive, porque radiador de fábrica é dimensionado para ciclo de uso e não para potência máxima indefinida.';
