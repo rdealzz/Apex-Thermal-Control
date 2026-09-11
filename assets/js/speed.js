@@ -188,14 +188,6 @@
     if (stopLive) { stopLive(); stopLive = null; }
   };
 
-  function tile(l, v, u, cls, frac) {
-    return '<div class="ecu-tile ' + (cls || '') + '">' +
-      '<div class="et-l">' + l + '</div>' +
-      '<div class="et-v">' + v + (u ? '<small>' + u + '</small>' : '') + '</div>' +
-      (frac === undefined ? '' : '<div class="et-bar"><i style="--f:' + U.clamp(frac, 0, 1).toFixed(3) + '"></i></div>') +
-      '</div>';
-  }
-
   /* ============================================================
      Tela de remapeamento
      ------------------------------------------------------------
@@ -268,7 +260,6 @@
       j0: Math.min(TBOX.j0, TBOX.j1), j1: Math.max(TBOX.j0, TBOX.j1)
     };
   }
-  function boxCount() { var b = box(); return (b.i1 - b.i0 + 1) * (b.j1 - b.j0 + 1); }
   function inBox(i, j) { var b = box(); return i >= b.i0 && i <= b.i1 && j >= b.j0 && j <= b.j1; }
   function eachSel(fn) {
     var b = box();

@@ -192,29 +192,6 @@
   color:var(--acc);margin-bottom:4px;
 }
 .remap-pane .ep-sub{font-size:12.5px;color:var(--ink-3);margin:0 0 16px;max-width:74ch}
-.ecu-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
-.ecu-tile{
-  border:1px solid var(--hair);border-radius:10px;padding:11px 13px;background:color-mix(in srgb,var(--surface-2) 70%,transparent);
-}
-.ecu-tile .et-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-4)}
-.ecu-tile .et-v{font-family:var(--mono);font-size:17.5px;color:var(--ink);margin-top:4px;font-weight:600}
-.ecu-tile .et-v small{font-size:10.5px;color:var(--ink-4);margin-left:3px}
-.ecu-tile .et-bar{height:4px;border-radius:3px;background:var(--surface-3);margin-top:9px;overflow:hidden}
-.ecu-tile .et-bar i{
-  display:block;height:100%;border-radius:3px;background:var(--acc);
-  transform:scaleX(var(--f,0));transform-origin:left center;
-  transition:transform .6s cubic-bezier(.22,.9,.28,1);
-}
-.ecu-tile.warn .et-v{color:var(--warn)}.ecu-tile.warn .et-bar i{background:var(--warn)}
-.ecu-tile.crit .et-v{color:var(--crit)}.ecu-tile.crit .et-bar i{background:var(--crit)}
-.ecu-tile.good .et-v{color:var(--ok)}.ecu-tile.good .et-bar i{background:var(--ok)}
-.ecu-code{
-  font-family:var(--mono);font-size:12px;line-height:1.9;color:var(--ink-2);
-  background:color-mix(in srgb,var(--canvas) 70%,transparent);border:1px solid var(--hair);
-  border-radius:10px;padding:12px 14px;overflow:auto;max-height:300px;white-space:pre-wrap;
-}
-.ecu-code .ok{color:var(--ok)}.ecu-code .w{color:var(--warn)}.ecu-code .e{color:var(--crit)}.ecu-code .d{color:var(--ink-4)}
-
 /* ============================================================
    7. DYNO
    ============================================================ */

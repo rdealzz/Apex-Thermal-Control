@@ -515,7 +515,9 @@ deles não fecha. Agora a aba **Análise térmica** os avalia:
 
 O que não pode ser verificado com a coleta aberta aparece como **pendente**, não como
 reprovado: um critério pendente é uma campanha de coleta que ainda falta, e dizer isso é
-mais útil do que deixar a linha em branco.
+mais útil do que deixar a linha em branco. A mesma tabela entra no relatório gerado, na
+seção 9 — os critérios são o que o professor vai conferir, e num relatório que se imprime
+eles precisam estar no papel, não só na tela.
 
 O C2 mudou o cálculo, não só a apresentação. Janelas com ε fora de 0 a 1 não são um
 resultado ruim: são janelas inválidas, vindas de erro de medição ou de estimativa de vazão,

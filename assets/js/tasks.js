@@ -16,13 +16,19 @@
   var U = ATC.U;
   var KEY = 'apex.tasks';
 
+  /* Lista conferida contra os tres documentos entregues na disciplina
+     — formulario de entrega, questionario de escopo e memoria de
+     calculo. O que eles ja respondem saiu daqui: equipe, turma,
+     professor, prazos e modelo do scanner estao preenchidos. O que
+     sobrou e o que continua em branco neles, mais o que a memoria
+     declara como estimativa a substituir. */
   var BUILTIN = [
-    { id: 'equipe',  t: 'Nome da equipe registrado no formulário <em>(a plataforma já adota <b>Apex Thermal Control</b>)</em>' },
-    { id: 'gente',   t: 'Número de integrantes e, para cada um: função, competência principal e disponibilidade semanal' },
-    { id: 'turma',   t: 'Turma/período, professor(a) responsável e data da aula' },
-    { id: 'prazos',  t: 'Prazo da primeira entrega e data da entrega seguinte' },
-    { id: 'scanner', t: 'Modelo do scanner OBD-II adquirido <em>(define o que cabe no escopo mínimo)</em>' },
-    { id: 'lab',     t: 'Acesso a laboratório da UniCuritiba: termopar, multímetro, termômetro infravermelho, fonte' }
+    { id: 'horas',   t: 'Disponibilidade semanal em horas <em>(em branco no formulário e na pergunta 17 do questionário)</em>' },
+    { id: 'aprova',  t: 'Aprovação do professor <em>(seção 08 do formulário e perguntas 25 a 27 do questionário, ainda sem preencher)</em>' },
+    { id: 'medir',   t: 'Medir o radiador real e substituir as estimativas da seção 4.2 da memória: área frontal, espessura da matriz e área de troca do lado do ar' },
+    { id: 'bomba',   t: 'Levantar a vazão da bomba d\'água por catálogo ou bancada <em>(é a maior fonte de incerteza do balanço)</em>' },
+    { id: 'critica', t: 'Campanha de coleta que atinja o limite crítico de temperatura <em>(sem ela o critério C8, de antecedência do alerta, fica pendente)</em>' },
+    { id: 'rev1',    t: 'Reemitir a memória de cálculo como Rev. 1, com os valores medidos no lugar dos estimados' }
   ];
 
   var state = { done: {}, custom: [] };

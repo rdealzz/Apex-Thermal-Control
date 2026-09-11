@@ -1010,10 +1010,11 @@
     card.hidden = false;
     var r = T.criteria(S.proc, S.sum, S.fit, S.alerts, S.params);
 
+    var pl = function (n, um, muitos) { return '<b>' + n + '</b> ' + (n === 1 ? um : muitos); };
     $('#critHead').innerHTML =
-      '<span class="cq ok"><b>' + r.atende + '</b> atendidos</span>' +
-      '<span class="cq bad"><b>' + r.falha + '</b> não atendidos</span>' +
-      '<span class="cq mut"><b>' + r.pendente + '</b> pendentes</span>';
+      '<span class="cq ok">' + pl(r.atende, 'atendido', 'atendidos') + '</span>' +
+      '<span class="cq bad">' + pl(r.falha, 'não atendido', 'não atendidos') + '</span>' +
+      '<span class="cq mut">' + pl(r.pendente, 'pendente', 'pendentes') + '</span>';
 
     var LAB = { atende: 'ATENDE', falha: 'NÃO ATENDE', pendente: 'PENDENTE' };
     $('#tblCrit').innerHTML =
@@ -1033,13 +1034,16 @@
       h = '<b>Todos os critérios atendidos.</b> Com esta coleta o projeto fecha os oito critérios de aceitação declarados na memória de cálculo e no formulário de entrega.';
     } else {
       if (falhas.length) {
-        h += '<b>Não atendidos:</b> ' + falhas.map(function (c) { return c.id; }).join(', ') +
+        h += (falhas.length === 1 ? '<b>Não atendido:</b> ' : '<b>Não atendidos:</b> ') +
+          falhas.map(function (c) { return c.id; }).join(', ') +
           '. ' + falhas[0].id + ' — ' + falhas[0].titulo.toLowerCase() + ' — ficou em ' + falhas[0].valor +
           ' contra o alvo de ' + falhas[0].alvo + '. ';
       }
       if (pend.length) {
-        h += '<b>Pendentes:</b> ' + pend.map(function (c) { return c.id; }).join(', ') +
-          ' — não há na coleta carregada o que é preciso para avaliá-los. ';
+        h += (pend.length === 1 ? '<b>Pendente:</b> ' : '<b>Pendentes:</b> ') +
+          pend.map(function (c) { return c.id; }).join(', ') +
+          (pend.length === 1 ? ' — não há na coleta carregada o que é preciso para avaliá-lo. '
+                             : ' — não há na coleta carregada o que é preciso para avaliá-los. ');
       }
       h += 'Um critério pendente não é um critério reprovado: é uma campanha de coleta que ainda falta.';
     }
@@ -1685,7 +1689,31 @@
       }
     }
 
-    h.push('<h3>9. Parâmetros e geometria adotados</h3>');
+    /* Os criterios de aceitacao sao o que o professor vai conferir.
+       Estavam so na tela; num relatorio que se imprime, precisam
+       estar tambem no papel. */
+    var cr = T.criteria(S.proc, s, S.fit, S.alerts, p);
+    var LABC = { atende: 'ATENDE', falha: 'NÃO ATENDE', pendente: 'PENDENTE' };
+    h.push('<h3>9. Critérios de aprovação técnica</h3>');
+    var plural = function (n, um, muitos) { return '<b>' + n + '</b> ' + (n === 1 ? um : muitos); };
+    h.push('<p>Os sete critérios da memória de cálculo e o de antecedência do alerta do formulário de entrega, avaliados sobre esta coleta: ' +
+      plural(cr.atende, 'atendido', 'atendidos') + ', ' +
+      plural(cr.falha, 'não atendido', 'não atendidos') + ', ' +
+      plural(cr.pendente, 'pendente', 'pendentes') + '.</p>');
+    h.push('<div class="tbl-scroll"><table class="compact"><thead><tr><th>#</th><th>Critério</th>' +
+      '<th class="num">Medido</th><th class="num">Alvo</th><th>Situação</th></tr></thead><tbody>' +
+      cr.itens.map(function (c) {
+        return '<tr><td>' + c.id + '</td><td>' + c.titulo + '</td>' +
+          '<td class="num">' + c.valor + '</td><td class="num">' + c.alvo + '</td>' +
+          '<td>' + LABC[c.status] + '</td></tr>';
+      }).join('') + '</tbody></table></div>');
+    if (cr.pendente) {
+      h.push('<p>Critério pendente não é critério reprovado: é campanha de coleta que ainda falta. ' +
+        cr.itens.filter(function (c) { return c.status === 'pendente'; })
+          .map(function (c) { return '<b>' + c.id + '</b> — ' + c.nota; }).join(' ') + '</p>');
+    }
+
+    h.push('<h3>10. Parâmetros e geometria adotados</h3>');
     h.push('<div class="tbl-scroll"><table class="compact"><tbody>' +
       row('Núcleo do radiador', U.br(p.coreW * 1000, 0) + ' × ' + U.br(p.coreH * 1000, 0) + ' × ' + U.br(p.coreD * 1000, 0) + ' mm') +
       row('Área frontal', U.br(g.aFront, 3) + ' m²') +
@@ -1702,7 +1730,7 @@
       row('Fluido', 'mistura água / etilenoglicol 50 % em volume') +
       '</tbody></table></div>');
 
-    h.push('<h3>10. Limitações e próximos passos</h3><ul class="clean">');
+    h.push('<h3>11. Limitações e próximos passos</h3><ul class="clean">');
     if (s.mode !== 'exp') h.push('<li>Sem ΔT medido, a efetividade apresentada é uma estimativa do modelo, não um resultado experimental. Instrumentar as mangueiras é a próxima ação prioritária.</li>');
     h.push('<li>A vazão do líquido é estimada em função da rotação (' + U.br(p.pumpDisp, 3) +
       ' L/rev) e é a maior fonte de incerteza do balanço de energia: um erro de 20 % na vazão se propaga integralmente para Q̇ e para ε.</li>');
