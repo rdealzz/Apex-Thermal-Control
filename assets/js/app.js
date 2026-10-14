@@ -200,6 +200,9 @@
       b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false');
     });
     $$('section.tab').forEach(function (s) { s.hidden = s.id !== 'tab-' + name; });
+    /* o relatorio aparece pronto: com a coleta carregada, abrir a aba
+       e encontrar so um botao fazia parecer que nao havia nada ali */
+    if (name === 'relatorio' && S.proc && $('#reportBody .empty')) buildReport();
     U.store.set('tab', name);
     /* a ultima aba de trabalho fica guardada a parte: e para ela que
        se volta ao sair do speed mode */
@@ -672,7 +675,7 @@
       h += kpi('Previsão +' + U.br(S.params.horizon / 60, 0) + ' min',
         pred ? U.br(pred.pred, 1) : '--', '°C',
         pred ? (pred.delta >= 0 ? '+' : '') + U.br(pred.delta, 1) + ' °C em ' + U.mmss(S.params.horizon)
-             : (S.fit && S.fit.ok ? 'sem alvo conhecido no fim da coleta' : 'treine o modelo na aba IA'),
+             : (S.fit && S.fit.ok ? 'sem alvo conhecido no fim da coleta' : 'treine o modelo na aba Previsão'),
         pred ? tempClass(pred.pred) : 'mut');
       h += kpi('Efetividade ε', d.warmup ? '--' : U.br(d.eps, 3), '',
         d.warmup ? 'termostato fechado' : 'NTU ' + U.br(d.ntu, 2) + ' · C_r ' + U.br(d.Cr, 2),
@@ -2097,7 +2100,7 @@
 
     /* alertas */
     $('#btnAlerts').addEventListener('click', function () {
-      if (!S.fit || !S.fit.ok) { alert('Treine o modelo na aba Previsão (IA) antes de avaliar os alertas.'); return; }
+      if (!S.fit || !S.fit.ok) { alert('Treine o modelo na aba Previsão antes de avaliar os alertas.'); return; }
       recomputeAlerts(); syncParamInputs(); renderAlerts(); renderPainel();
     });
 
