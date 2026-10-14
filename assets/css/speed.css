@@ -224,7 +224,7 @@
 .tune-preset{border-style:dashed}
 
 .tune-wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
-@media (max-width:1100px){.tune-wrap{grid-template-columns:1fr}}
+@media (max-width:1100px){.tune-wrap{grid-template-columns:minmax(0,1fr)}}
 
 /* no celular a tabela nao cabe: ela rola dentro do proprio bloco,
    e so ela — a pagina continua sem rolagem lateral */
@@ -327,8 +327,8 @@
   display:grid;gap:12px;margin:0 0 16px;
   grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.5fr);
 }
-@media (max-width:980px){.hero{grid-template-columns:1fr 1fr}.hero-st{grid-column:span 2}}
-@media (max-width:560px){.hero{grid-template-columns:1fr}.hero-st{grid-column:span 1}}
+@media (max-width:980px){.hero{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.hero-st{grid-column:span 2}}
+@media (max-width:560px){.hero{grid-template-columns:minmax(0,1fr)}.hero-st{grid-column:span 1}}
 .hero-c,.hero-st{
   border:1px solid var(--hair-strong);border-radius:var(--r);
   padding:14px 16px 13px;position:relative;overflow:hidden;

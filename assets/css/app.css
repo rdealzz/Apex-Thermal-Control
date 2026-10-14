@@ -495,8 +495,8 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .g-2-1{grid-template-columns:minmax(0,2fr) minmax(0,1fr)}
 .g-1-2{grid-template-columns:minmax(0,1fr) minmax(0,2fr)}
-@media (max-width:1040px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3,.g-2-1,.g-1-2{grid-template-columns:1fr}}
-@media (max-width:640px){.g2,.g4{grid-template-columns:1fr}}
+@media (max-width:1040px){.g4{grid-template-columns:repeat(2,minmax(0,1fr))}.g3,.g-2-1,.g-1-2{grid-template-columns:minmax(0,1fr)}}
+@media (max-width:640px){.g2,.g4{grid-template-columns:minmax(0,1fr)}}
 
 /* ============================================================
    6. INDICADORES
@@ -543,6 +543,8 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 .badge.hot{color:var(--hot);border-color:color-mix(in srgb,var(--hot) 32%,transparent);background:var(--hot-soft)}
 .badge.crit{color:var(--crit);border-color:color-mix(in srgb,var(--crit) 32%,transparent);background:var(--crit-soft)}
 .badge.info{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 30%,transparent);background:var(--acc-soft)}
+/* veredito do modelo e uma frase: quebra linha em vez de vazar no celular */
+#verdictBadge{white-space:normal;text-align:left}
 .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .dot-live{animation:pulse 1.8s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -996,4 +998,11 @@ footer.foot{border-top:1px solid var(--hair);padding:22px 0 34px;color:var(--ink
   .kpi{background:#fafafa;border-color:#e2e2e2;box-shadow:none;transform:none!important}
   section.tab[hidden]{display:none}
   .chart-box canvas,.circuit{background:#fff;border-color:#e2e2e2}
+  /* o relatorio e mais alto que uma pagina: tem que poder quebrar,
+     senao o navegador o empurra inteiro e a primeira folha sai so
+     com o cabecalho. Quebra entre secoes, nunca no meio de uma linha */
+  .no-print{display:none!important}
+  .card.report{break-inside:auto;border:0;padding:0;margin:0}
+  .report h3,.report h4{break-after:avoid}
+  .report tr,.report .note,.report dl{break-inside:avoid}
 }
