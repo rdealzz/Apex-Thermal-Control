@@ -34,7 +34,9 @@
     var host = cv.parentNode;
     var w = host.clientWidth || 320;
     var h = Math.round(U.clamp(w * ratio, minH, maxH));
-    var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    /* resolucao cheia da tela: limitar o dpr deixava o desenho
+       esticado e borrado em celular e monitor de alta densidade */
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
     if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
       cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
       cv.style.height = h + 'px';

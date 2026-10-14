@@ -458,10 +458,8 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
   padding:18px 20px;margin-bottom:14px;position:relative;
   transition:box-shadow .3s ease,border-color .3s ease;
 }
-.card.lift{
-  transform:perspective(1400px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg)) translate3d(0,var(--ty,0),0);
-  transform-style:preserve-3d;will-change:transform;
-}
+/* sem inclinacao 3D: a perspectiva fazia o navegador rasterizar o
+   cartao como textura e o texto e os graficos ficavam borrados */
 .card.lift:hover{box-shadow:var(--sh-2)}
 /* fio de luz no topo, recuado para nao brigar com o canto arredondado */
 .card::before{
@@ -495,8 +493,6 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 .kpi{
   background:var(--surface);border:1px solid var(--hair);border-radius:var(--r-sm);
   padding:13px 15px;position:relative;overflow:hidden;box-shadow:var(--sh-1);
-  transform:perspective(1200px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
-  will-change:transform;
 }
 .kpi::before{
   content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
@@ -542,9 +538,8 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 /* ============================================================
    8. BOTOES
    ------------------------------------------------------------
-   A face e a unica coisa que se move e ela so muda de transform:
-   rotateX/rotateY vindos do cursor e um deslocamento vertical no
-   toque. A espessura lateral e a sombra de contato sao box-shadow
+   A face so se desloca na vertical no toque — sem inclinacao 3D,
+   que borrava o texto do botao. A espessura lateral e a sombra de contato sao box-shadow
    que so trocam na transicao pressionado/solto — uma vez por
    clique, nunca por quadro.
    ============================================================ */
@@ -560,13 +555,7 @@ button.btn,a.btn{
     0 1px 0 var(--btn-rim) inset,
     0 var(--depth) 0 -1px var(--btn-edge),
     0 calc(var(--depth) + 3px) 10px -4px rgba(13,15,20,.28);
-  transform:
-    perspective(680px)
-    rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg))
-    translate3d(0, calc(var(--press,0) * (var(--depth) - 1px)), 0)
-    scale(var(--sc,1));
-  transform-style:preserve-3d;
-  will-change:transform;
+  transform:translateY(calc(var(--press,0) * (var(--depth) - 1px)));
   transition:box-shadow .14s cubic-bezier(.3,.7,.4,1), border-color .16s, filter .16s;
 }
 /* brilho especular: um circulo que so translada — sem repaint */
@@ -659,8 +648,7 @@ legend{
 .dz{
   border:1px dashed var(--hair-strong);border-radius:var(--r);background:var(--surface-2);
   padding:26px 18px;text-align:center;cursor:pointer;display:block;position:relative;overflow:hidden;
-  transform:perspective(1200px) rotateX(var(--rx,0deg)) rotateY(var(--ry,0deg));
-  will-change:transform;transition:border-color .2s,background .2s;
+  transition:border-color .2s,background .2s;
 }
 .dz:hover,.dz.over{border-color:var(--acc);background:var(--acc-soft)}
 .dz .dz-ico{font-size:22px;line-height:1;opacity:.75}

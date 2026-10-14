@@ -113,13 +113,13 @@
   /* ============================================================
      Superficies que respondem ao ponteiro
      ============================================================ */
+  /* sem inclinacao 3D nem zoom nos blocos de texto: rotateX/rotateY
+     e scale fracionario rasterizam o elemento e borram letras e
+     graficos. Fica so o afundamento no toque e o brilho do botao. */
   var KINDS = [
-    { sel: 'button.btn, a.btn',        tilt: 9,   press: 1, glare: true,  scale: 1.012, k: 260, c: 22 },
+    { sel: 'button.btn, a.btn',        tilt: 0, press: 1, glare: true,  scale: 1,    k: 260, c: 22 },
     { sel: '.speed-btn, .icon-btn, .kbd-btn', tilt: 0, press: 1, glare: false, scale: 1.04, k: 300, c: 24 },
-    { sel: 'nav.tabs button',          tilt: 0,   press: 1, glare: false, scale: 1,     k: 300, c: 26 },
-    { sel: '.dz',                      tilt: 2.6, press: 0, glare: false, scale: 1,     k: 150, c: 22 },
-    { sel: '.kpi',                     tilt: 3.4, press: 0, glare: false, scale: 1,     k: 140, c: 21 },
-    { sel: '.card.lift',               tilt: 1.6, press: 0, glare: false, scale: 1,     k: 120, c: 20 }
+    { sel: 'nav.tabs button',          tilt: 0, press: 1, glare: false, scale: 1,    k: 300, c: 26 }
   ];
   var SEL = KINDS.map(function (k) { return k.sel; }).join(', ');
 

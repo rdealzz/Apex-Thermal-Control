@@ -55,7 +55,44 @@
       if (cells.length === 1 && cells[0] === '') continue;
       rows.push(cells);
     }
-    return { header: header, rows: rows, delim: d };
+    var parsed = { header: header, rows: rows, delim: d };
+    return C.pivotLong(parsed) || parsed;
+  };
+
+  /* ---------- formato longo (Car Scanner ELM OBD2) ----------
+     O Car Scanner grava uma leitura por linha:
+       SECONDS;PID;VALUE;UNITS
+       45123.4;Engine RPM;812;rpm
+     Aqui isso vira uma tabela larga: cada PID uma coluna, com a
+     unidade no nome para a deteccao de colunas e de unidades. Uma
+     linha nova comeca quando um PID se repete — um ciclo de leitura
+     do ELM327 por linha.                                          */
+  C.pivotLong = function (parsed) {
+    var H = parsed.header, find = function (re) {
+      for (var i = 0; i < H.length; i++) if (re.test(H[i])) return i;
+      return -1;
+    };
+    var iPid = find(/^(pid|sensor|parameter|par[aâ]metro|name|nome)$/i);
+    var iVal = find(/^(value|valor)$/i);
+    var iTime = find(/^(seconds|time|timestamp|device ?time|tempo|hora)$/i);
+    if (iPid < 0 || iVal < 0 || iTime < 0) return null;
+    var iUnit = find(/^(units?|unidades?)$/i);
+
+    var cols = [], colIdx = {}, out = [], cur = null;
+    parsed.rows.forEach(function (c) {
+      var pid = (c[iPid] || '').trim();
+      if (!pid) return;
+      var unit = iUnit >= 0 ? (c[iUnit] || '').trim() : '';
+      var name = unit ? pid + ' (' + unit + ')' : pid;
+      if (!(name in colIdx)) { colIdx[name] = cols.length + 1; cols.push(name); }
+      var k = colIdx[name];
+      if (!cur || cur[k] !== undefined) { cur = [c[iTime]]; out.push(cur); }
+      cur[k] = c[iVal];
+    });
+    if (!out.length) return null;
+    var width = cols.length + 1;
+    out.forEach(function (r) { for (var j = 0; j < width; j++) if (r[j] === undefined) r[j] = ''; });
+    return { header: [H[iTime]].concat(cols), rows: out, delim: parsed.delim, long: true };
   };
 
   /* ---------- numero tolerante (virgula decimal, unidade colada) ---------- */
