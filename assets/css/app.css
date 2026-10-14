@@ -475,6 +475,18 @@ section.tab{animation:sectionIn .26s cubic-bezier(.22,.8,.3,1) both}
 .card>h2,.card>h3{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .card>h2{font-size:15.5px;margin-bottom:3px}
 .card>h3{font-size:14px;margin-bottom:3px}
+.card>h4{
+  font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-4);
+  font-weight:660;margin:14px 0 4px;
+}
+.card>h3+h4{margin-top:8px}
+/* roteiro de avaliacao no painel vazio */
+.empty .route{
+  text-align:left;max-width:560px;margin:22px auto 0;padding:14px 18px 14px 36px;
+  border:1px solid var(--hair);border-radius:var(--r-sm);background:var(--surface-2);
+  color:var(--ink-3);font-size:12.8px;line-height:1.75;
+}
+.empty .route b{color:var(--ink-2)}
 .card .hint{color:var(--ink-3);font-size:12.8px;margin:3px 0 14px;max-width:78ch}
 
 .grid{display:grid;gap:14px}

@@ -131,6 +131,14 @@
         <button class="btn primary" data-goto="importar">Ir para Importar dados</button>
         <button class="btn" id="btnQuickDemo">Carregar coleta de demonstração</button>
       </div>
+      <ol class="route">
+        <li><b>Importar dados</b> — carregue a coleta (ou a demonstração)</li>
+        <li><b>Painel</b> — temperaturas, calor rejeitado e efetividade ao longo da coleta</li>
+        <li><b>Entenda o cálculo</b> — a conta passo a passo, com os números da coleta</li>
+        <li><b>Análise térmica</b> — ε–NTU, UA, incerteza e critérios de aceitação</li>
+        <li><b>Previsão</b> e <b>Alertas</b> — treine o modelo e veja a antecedência do alerta</li>
+        <li><b>Relatório</b> — o resumo técnico, exportável em PDF</li>
+      </ol>
     </div>
   </div>
 
@@ -654,6 +662,7 @@
         <label class="chk"><input type="checkbox" id="inSkipWarm" checked> excluir aquecimento a frio</label>
       </div>
     </div>
+    <p class="hint" style="margin:4px 0 0"><b>Horizonte</b>: quantos segundos à frente o modelo prevê (300 s = 5 min). <b>Regularização λ</b>: o quanto o modelo é impedido de decorar ruído; no automático ela é escolhida por validação cruzada. <b>Holdout</b>: fração inicial da coleta usada para treinar — o restante fica guardado só para testar com dados que o modelo nunca viu. <b>MAE</b>: erro médio absoluto, em °C; abaixo do critério, o modelo é aprovado. Os valores padrão já servem: basta clicar em <b>Treinar modelo</b>.</p>
   </div>
 
   <div id="iaEmpty" class="card"><div class="empty"><span class="big">🧠</span>Carregue uma coleta e clique em <b>Treinar modelo</b>.</div></div>
@@ -718,7 +727,7 @@
     <p class="hint" style="margin-bottom:0">O alerta preditivo é emitido quando a temperatura <b>prevista</b> para o horizonte ultrapassa o limite crítico, ainda que a temperatura medida esteja normal. A antecedência é o intervalo entre o primeiro alerta e o cruzamento real do limite.</p>
   </div>
 
-  <div id="alertEmpty" class="card"><div class="empty"><span class="big">🔔</span>Treine o modelo na aba <b>Previsão (IA)</b> para habilitar os alertas preditivos.</div></div>
+  <div id="alertEmpty" class="card"><div class="empty"><span class="big">🔔</span>Os alertas usam a temperatura prevista: treine o modelo na aba <b>Previsão</b> primeiro.<div class="btn-row" style="justify-content:center;margin-top:14px"><button class="btn primary" data-goto="ia">Ir para Previsão</button></div></div></div>
 
   <div id="alertBody" hidden>
     <div class="card lift ticked">
@@ -773,7 +782,7 @@
   <div class="card lift ticked">
     <div class="spread">
       <div style="display:flex;gap:14px;align-items:center">
-        <svg style="width:56px;height:56px;flex:0 0 auto" aria-hidden="true"><use href="#atcLogo"/></svg>
+        <svg viewBox="0 0 64 64" style="width:56px;height:56px;flex:0 0 auto" aria-hidden="true"><use href="#apexMark"/></svg>
         <div>
           <h2 style="font-size:19px">Apex Thermal Control</h2>
           <p class="hint" style="margin:2px 0 0">Análise térmica do radiador automotivo com monitoramento e previsão de temperatura</p>
