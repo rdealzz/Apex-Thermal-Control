@@ -227,19 +227,41 @@
   /* ============================================================
      Importacao de arquivos
      ============================================================ */
+  /* le em bytes e decide a codificacao: apps Android gravam UTF-8,
+     o Excel salva "CSV Unicode" em UTF-16 e o Windows em ANSI.
+     Lido sempre como UTF-8, um arquivo UTF-16 vira lixo e nenhuma
+     coluna e reconhecida.                                         */
+  function decodeText(buf) {
+    var b = new Uint8Array(buf);
+    var enc = 'utf-8';
+    if (b[0] === 0xFF && b[1] === 0xFE) enc = 'utf-16le';
+    else if (b[0] === 0xFE && b[1] === 0xFF) enc = 'utf-16be';
+    else if (b.length > 3 && b[1] === 0 && b[3] === 0) enc = 'utf-16le';
+    else if (b.length > 3 && b[0] === 0 && b[2] === 0) enc = 'utf-16be';
+    if (enc !== 'utf-8') return new TextDecoder(enc).decode(b);
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(b); }
+    catch (e) { return new TextDecoder('windows-1252').decode(b); }
+  }
+
   function readFile(file, cb) {
     var fr = new FileReader();
-    fr.onload = function () { cb(null, String(fr.result)); };
+    fr.onload = function () {
+      try { cb(null, decodeText(fr.result)); }
+      catch (e) { cb(new Error('Não foi possível decodificar o arquivo.')); }
+    };
     fr.onerror = function () { cb(new Error('Falha ao ler o arquivo.')); };
-    fr.readAsText(file, 'UTF-8');
+    fr.readAsArrayBuffer(file);
   }
 
   function handleFile(kind, file) {
     if (!file) return;
     readFile(file, function (err, text) {
       if (err) { logLine('ERRO: ' + err.message, 'err'); return; }
-      var parsed = C.parse(text);
-      if (!parsed.header.length) { logLine('ERRO: arquivo sem cabeçalho reconhecível.', 'err'); return; }
+      var parsed;
+      try { parsed = C.parse(text); }
+      catch (e) { logLine('ERRO ao ler ' + file.name + ': ' + e.message, 'err'); showImportLog(); return; }
+      if (!parsed.header.length) { logLine('ERRO: ' + file.name + ' não tem cabeçalho reconhecível.', 'err'); showImportLog(); return; }
+      if (parsed.long) logLine('Formato longo (uma leitura por linha, Car Scanner) convertido em ' + (parsed.header.length - 1) + ' colunas.', 'dim');
       var map = C.autoMap(parsed.header);
       var store = { parsed: parsed, map: map, name: file.name, size: file.size };
       if (kind === 'obd') S.obd = store; else S.esp = store;
@@ -297,8 +319,32 @@
   /* ============================================================
      Processamento
      ============================================================ */
+  /* o registro fica no cartao de auditoria: abre-o para o erro aparecer */
+  function showImportLog() {
+    var c = $('#auditCard');
+    if (c) c.hidden = false;
+    var box = $('#importLog');
+    if (box) box.scrollIntoView({ block: 'nearest' });
+  }
+
+  /* devolve true quando a coleta foi carregada */
   function processData() {
-    if (!S.obd && !S.esp) { logLine('Nada para processar.', 'warn'); return; }
+    try { return processDataUnsafe(); }
+    catch (e) {
+      logLine('ERRO no processamento: ' + (e && e.message ? e.message : e), 'err');
+      if (window.console) console.error(e);
+      showImportLog();
+      return false;
+    }
+  }
+
+  function processDataUnsafe() {
+    if (!S.obd && !S.esp) { logLine('Nada para processar: escolha ao menos um arquivo.', 'warn'); showImportLog(); return false; }
+    var src = S.obd || S.esp;
+    if (!(src.map.time >= 0)) {
+      logLine('ERRO: a coluna de tempo não foi identificada. Escolha-a em "Tempo / timestamp" no mapeamento.', 'err');
+      showImportLog(); return false;
+    }
 
     var rowsObd = [], rowsEsp = [];
     if (S.obd) {
@@ -325,12 +371,12 @@
       merged = rowsObd.length ? rowsObd : rowsEsp;
       if (!rowsObd.length) logLine('Somente o arquivo do logger foi carregado: sem RPM e velocidade o cálculo de vazão fica indisponível.', 'warn');
     }
-    finishLoad(merged, S.meta || { name: (S.obd && S.obd.name) || (S.esp && S.esp.name) || 'Coleta importada', demo: false });
+    return finishLoad(merged, S.meta || { name: (S.obd && S.obd.name) || (S.esp && S.esp.name) || 'Coleta importada', demo: false });
   }
 
   /* normaliza tempo para segundos desde o inicio e carrega */
   function finishLoad(rows, meta) {
-    if (!rows || !rows.length) { logLine('ERRO: nenhuma amostra válida após o processamento.', 'err'); return; }
+    if (!rows || !rows.length) { logLine('ERRO: nenhuma amostra válida após o processamento.', 'err'); showImportLog(); return false; }
     var t0 = rows[0].time !== undefined ? rows[0].time : rows[0].t;
     S.rows = rows.map(function (r) {
       var abs = r.time !== undefined ? r.time : r.t;
@@ -351,6 +397,7 @@
             (S.proc.mode === 'exp' ? 'EXPERIMENTAL (ΔT medido)' : 'MODELO (estimado)') + '.', 'ok');
     $('#auditCard').hidden = false;
     renderAll();
+    return true;
   }
 
   function recompute() {
@@ -2014,7 +2061,7 @@
         if (f) handleFile(pair[1], f);
       });
     });
-    $('#btnProcess').addEventListener('click', function () { processData(); setTab('painel'); });
+    $('#btnProcess').addEventListener('click', function () { if (processData()) setTab('painel'); });
     $('#btnAutoSync').addEventListener('click', autoSync);
     $('#btnClearData').addEventListener('click', function () {
       S.obd = S.esp = S.rows = S.proc = S.sum = S.fit = S.alerts = S.anom = S.meta = null;

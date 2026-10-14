@@ -488,7 +488,7 @@
 .ck-s{font-family:var(--mono);font-size:10.5px;color:var(--ink-4)}
 .ck-s.warn{color:var(--crit)}
 .ck-canvas{position:relative;contain:paint}
-.ck-canvas canvas{width:100%;display:block;will-change:transform}
+.ck-canvas canvas{width:100%;display:block}
 .ck-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:11px;flex-wrap:wrap}
 
 /* ---------- pedal ---------- */
