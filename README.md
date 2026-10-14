@@ -312,6 +312,12 @@ extra reduz a taxa de amostragem de todos):
 Confirme que o app está gravando **timestamp em cada linha** — sem isso não é possível
 sincronizar com o logger de temperatura.
 
+A importação aceita os dois formatos que esses apps exportam: o **largo** (uma coluna por
+PID, como o Torque Pro) e o **longo** do Car Scanner (`SECONDS;PID;VALUE;UNITS`, uma
+leitura por linha), que é convertido em colunas automaticamente. Arquivos em UTF-8, UTF-16
+(o "CSV Unicode" do Excel) e ANSI são lidos sem conversão manual. Se algo não for
+reconhecido, o motivo aparece no **Registro da importação**.
+
 **2. Logger de temperatura (ESP32 + 2× DS18B20)**
 
 Um sensor na mangueira superior e outro na inferior do radiador. O ΔT entre eles é o que
