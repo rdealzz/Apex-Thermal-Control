@@ -422,7 +422,8 @@
         ctx.fillStyle = THEME.txt; ctx.font = '13px system-ui,sans-serif'; ctx.textAlign = 'center';
         ctx.fillText(c.emptyMsg || 'Sem dados', W / 2, H / 2); return;
       }
-      var labW = c.labelWidth || 130;
+      /* em tela estreita o rotulo nao pode comer a barra inteira */
+      var labW = Math.min(c.labelWidth || 130, Math.round(W * 0.46));
       var valW = 66;
       var pw = Math.max(W - labW - valW - 14, 20);
       var maxAbs = Math.max.apply(null, items.map(function (i) { return Math.abs(i.value) || 0; })) || 1;
@@ -435,7 +436,13 @@
         var y = 12 + i * ((H - 22) / items.length);
         ctx.font = '11.5px system-ui,sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
         ctx.fillStyle = THEME.txt;
-        var lab = it.label.length > 22 ? it.label.slice(0, 21) + '…' : it.label;
+        /* corta pela largura real do texto, nao por numero de letras:
+           com 22 letras fixas, rotulos curtos o bastante ja sumiam */
+        var lab = it.label, room = labW - 12;
+        if (ctx.measureText(lab).width > room) {
+          while (lab.length > 2 && ctx.measureText(lab + '…').width > room) lab = lab.slice(0, -1);
+          lab = lab.replace(/\s+$/, '') + '…';
+        }
         ctx.fillText(lab, labW - 8, y + bh / 2);
         var w = Math.abs(it.value) * scale;
         ctx.fillStyle = it.color || '#c9ced9';

@@ -1447,7 +1447,7 @@
 
     /* pesos */
     G.bars($('#chartWeights'), {
-      height: Math.max(180, fit.weights.length * 27 + 24), labelWidth: 196,
+      height: Math.max(180, fit.weights.length * 27 + 24), labelWidth: 250,
       items: fit.weights.map(function (w) {
         return { label: w.label, value: w.w, color: w.w >= 0 ? COL.hot : COL.cold };
       }),
@@ -1465,7 +1465,7 @@
       var extra = S.anom.calibrated ? ''
         : '<br><span style="color:var(--warn)">A regra de perda de desempenho está inativa: sem calibração contra uma coleta de referência, ' +
           'o UA teórico carrega o viés das correlações e um limiar absoluto geraria falso positivo. Calibre na aba Análise térmica.</span>';
-      t.innerHTML = '<tbody><tr><td style="color:var(--ok)">✓ Nenhuma anomalia sustentada detectada. Índice de saúde mediano: ' +
+      t.innerHTML = '<tbody><tr><td style="color:var(--ok);white-space:normal">✓ Nenhuma anomalia sustentada detectada. Índice de saúde mediano: ' +
         U.br(S.anom.healthMedian * 100, 0) + ' % do previsto.' + extra + '</td></tr></tbody>';
       return;
     }
@@ -1788,7 +1788,7 @@
       '); medir com anemômetro na face do radiador reduziria essa incerteza.</li>');
     if (S.proc.rows.some(function (d) { return d.ambEstimated; })) h.push('<li>A temperatura ambiente foi estimada a partir da temperatura do ar de admissão, que sofre encharcamento térmico com o veículo parado. Um sensor dedicado fora do compartimento do motor corrige isso.</li>');
     h.push('<li>A geometria do núcleo do radiador está preenchida com valores estimados; substituí-la por medições reais é o que mais melhora o UA teórico.</li>');
-    h.push('<li>O modelo de previsão foi treinado com uma única sessão. Mais campanhas, em dias e condições distintas, são necessárias para um resultado estável.</li>');
+    if (fit && fit.ok) h.push('<li>O modelo de previsão foi treinado com uma única sessão. Mais campanhas, em dias e condições distintas, são necessárias para um resultado estável.</li>');
     h.push('</ul>');
 
     host.innerHTML = h.join('\n');
