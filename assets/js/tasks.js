@@ -24,7 +24,6 @@
      declara como estimativa a substituir. */
   var BUILTIN = [
     { id: 'horas',   t: 'Disponibilidade semanal em horas <em>(em branco no formulário e na pergunta 17 do questionário)</em>' },
-    { id: 'aprova',  t: 'Aprovação do professor <em>(seção 08 do formulário e perguntas 25 a 27 do questionário, ainda sem preencher)</em>' },
     { id: 'medir',   t: 'Medir o radiador real e substituir as estimativas da seção 4.2 da memória: área frontal, espessura da matriz e área de troca do lado do ar' },
     { id: 'bomba',   t: 'Levantar a vazão da bomba d\'água por catálogo ou bancada <em>(é a maior fonte de incerteza do balanço)</em>' },
     { id: 'critica', t: 'Campanha de coleta que atinja o limite crítico de temperatura <em>(sem ela o critério C8, de antecedência do alerta, fica pendente)</em>' },
